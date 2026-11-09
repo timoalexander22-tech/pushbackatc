@@ -10,33 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CommsRouteImport } from './routes/comms'
+import { Route as GroundOpsRouteImport } from './routes/ground-ops'
+import { Route as PushbackRouteImport } from './routes/pushback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommsRoute = CommsRouteImport.update({
+  id: '/comms',
+  path: '/comms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroundOpsRoute = GroundOpsRouteImport.update({
+  id: '/ground-ops',
+  path: '/ground-ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PushbackRoute = PushbackRouteImport.update({
+  id: '/pushback',
+  path: '/pushback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/comms': typeof CommsRoute
+  '/ground-ops': typeof GroundOpsRoute
+  '/pushback': typeof PushbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/comms': typeof CommsRoute
+  '/ground-ops': typeof GroundOpsRoute
+  '/pushback': typeof PushbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/comms': typeof CommsRoute
+  '/ground-ops': typeof GroundOpsRoute
+  '/pushback': typeof PushbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/comms' | '/ground-ops' | '/pushback'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/comms' | '/ground-ops' | '/pushback'
+  id: '__root__' | '/' | '/comms' | '/ground-ops' | '/pushback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CommsRoute: typeof CommsRoute
+  GroundOpsRoute: typeof GroundOpsRoute
+  PushbackRoute: typeof PushbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +78,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/comms': {
+      id: '/comms'
+      path: '/comms'
+      fullPath: '/comms'
+      preLoaderRoute: typeof CommsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ground-ops': {
+      id: '/ground-ops'
+      path: '/ground-ops'
+      fullPath: '/ground-ops'
+      preLoaderRoute: typeof GroundOpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pushback': {
+      id: '/pushback'
+      path: '/pushback'
+      fullPath: '/pushback'
+      preLoaderRoute: typeof PushbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CommsRoute: CommsRoute,
+  GroundOpsRoute: GroundOpsRoute,
+  PushbackRoute: PushbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
