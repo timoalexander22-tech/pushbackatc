@@ -13,6 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CommsRouteImport } from './routes/comms'
 import { Route as GroundOpsRouteImport } from './routes/ground-ops'
 import { Route as PushbackRouteImport } from './routes/pushback'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TrainingRouteImport } from './routes/training'
+import { Route as TutorialRouteImport } from './routes/tutorial'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +37,39 @@ const PushbackRoute = PushbackRouteImport.update({
   path: '/pushback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrainingRoute = TrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TutorialRoute = TutorialRouteImport.update({
+  id: '/tutorial',
+  path: '/tutorial',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/comms': typeof CommsRoute
   '/ground-ops': typeof GroundOpsRoute
   '/pushback': typeof PushbackRoute
+  '/settings': typeof SettingsRoute
+  '/training': typeof TrainingRoute
+  '/tutorial': typeof TutorialRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/comms': typeof CommsRoute
   '/ground-ops': typeof GroundOpsRoute
   '/pushback': typeof PushbackRoute
+  '/settings': typeof SettingsRoute
+  '/training': typeof TrainingRoute
+  '/tutorial': typeof TutorialRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +77,38 @@ export interface FileRoutesById {
   '/comms': typeof CommsRoute
   '/ground-ops': typeof GroundOpsRoute
   '/pushback': typeof PushbackRoute
+  '/settings': typeof SettingsRoute
+  '/training': typeof TrainingRoute
+  '/tutorial': typeof TutorialRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/comms' | '/ground-ops' | '/pushback'
+  fullPaths:
+    | '/'
+    | '/comms'
+    | '/ground-ops'
+    | '/pushback'
+    | '/settings'
+    | '/training'
+    | '/tutorial'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/comms' | '/ground-ops' | '/pushback'
-  id: '__root__' | '/' | '/comms' | '/ground-ops' | '/pushback'
+  to:
+    | '/'
+    | '/comms'
+    | '/ground-ops'
+    | '/pushback'
+    | '/settings'
+    | '/training'
+    | '/tutorial'
+  id:
+    | '__root__'
+    | '/'
+    | '/comms'
+    | '/ground-ops'
+    | '/pushback'
+    | '/settings'
+    | '/training'
+    | '/tutorial'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +116,9 @@ export interface RootRouteChildren {
   CommsRoute: typeof CommsRoute
   GroundOpsRoute: typeof GroundOpsRoute
   PushbackRoute: typeof PushbackRoute
+  SettingsRoute: typeof SettingsRoute
+  TrainingRoute: typeof TrainingRoute
+  TutorialRoute: typeof TutorialRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +151,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PushbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/training': {
+      id: '/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof TrainingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tutorial': {
+      id: '/tutorial'
+      path: '/tutorial'
+      fullPath: '/tutorial'
+      preLoaderRoute: typeof TutorialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +180,9 @@ const rootRouteChildren: RootRouteChildren = {
   CommsRoute: CommsRoute,
   GroundOpsRoute: GroundOpsRoute,
   PushbackRoute: PushbackRoute,
+  SettingsRoute: SettingsRoute,
+  TrainingRoute: TrainingRoute,
+  TutorialRoute: TutorialRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

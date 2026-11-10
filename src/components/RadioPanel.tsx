@@ -5,7 +5,7 @@ import type { Message } from "@/lib/crew/engine";
 import { speak, useRecognition } from "@/lib/speech";
 import { cn } from "@/lib/utils";
 
-export function RadioLog({ log, empty }: { log: Message[]; empty?: string }) {
+export function RadioLog({ log, empty }: { log: Message[]; empty?: string | undefined }) {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), [log.length]);
   return (
@@ -38,7 +38,7 @@ export function RadioLog({ log, empty }: { log: Message[]; empty?: string }) {
   );
 }
 
-export function CommandInput({ onSend, suggestions }: { onSend: (t: string) => void; suggestions?: string[] }) {
+export function CommandInput({ onSend, suggestions }: { onSend: (t: string) => void; suggestions?: string[] | undefined }) {
   const [text, setText] = useState("");
   const rec = useRecognition((t) => onSend(t));
   const submit = () => {
