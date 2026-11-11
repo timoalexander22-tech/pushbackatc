@@ -71,8 +71,10 @@ const COMPASS: [RegExp, string][] = [
 ];
 export function detectFacing(raw: string): string | null {
   const t = norm(raw);
-  if (!/\b(facing|face|nose)\b/.test(t)) return null;
-  return COMPASS.find(([r]) => r.test(t))?.[1] ?? null;
+  if (!/\b(facing|face|nose|heading)\b/.test(t)) return null;
+  const hits = COMPASS.filter(([r]) => r.test(t)).map(([, v]) => v);
+  const main = hits.filter((h) => !hits.some((o) => o !== h && o.includes(h)));
+  return main.length === 1 ? main[0] : null;
 }
 
 const dirPhrase = (d: PushDirection) =>
@@ -84,14 +86,47 @@ export const DIRECTION_LABEL: Record<PushDirection, string> = {
   right: "Heck nach rechts",
 };
 
-const norm = (t: string) =>
-  t
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, " ")
-    .replace(/\bone\b/g, "1")
-    .replace(/\btwo\b/g, "2")
-    .replace(/\s+/g, " ")
-    .trim();
+// Words we may auto-correct (misheard/typo). Safety-critical words (left, right,
+// compass points, numbers, set/release, stop) are never fuzzy-matched: no guessing.
+const VOCAB = ["ground", "cockpit", "pushback", "equipment", "disconnect", "towbar", "steering", "bypass", "brakes", "parking", "engine", "engines", "starting", "doors", "remove", "removed", "chocks", "power", "request", "ready", "facing", "straight", "status", "thanks", "headset", "interphone", "complete", "connected", "towing"];
+const SPOKEN: [RegExp, string][] = [
+  [/\bpush ?back\b|\bpush bag\b|\bpush pack\b/g, "pushback"], [/\bbreaks?\b/g, "brakes"], [/\btow ?bar\b|\btoe bar\b/g, "towbar"],
+  [/\b(engine|engines|number) (to|too)\b/g, "$1 2"], [/\b(engine|engines|number) (won|on)\b/g, "$1 1"],
+  [/\bwon\b/g, "1"], [/\bone\b/g, "1"], [/\btwo\b/g, "2"], [/\bphasing\b|\bfaceing\b|\bfacin\b/g, "facing"],
+  [/\bstraight back\b|\bstraight out\b|\bdirectly back\b/g, "straight"],
+];
+function lev(a: string, b: string) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+const fix = (w: string) => {
+  if (w.length < 5 || VOCAB.includes(w)) return w;
+  const max = w.length >= 8 ? 2 : 1;
+  let best: string | null = null, bd = 99, tie = false;
+  for (const v of VOCAB) { const x = lev(w, v); if (x < bd) { bd = x; best = v; tie = false; } else if (x === bd) tie = true; }
+  return best && bd <= max && !tie ? best : w;
+};
+export const norm = (t: string) => {
+  let x = t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  x = x.split(" ").map(fix).join(" ");
+  for (const [r, v] of SPOKEN) x = x.replace(r, v);
+  return x.replace(/\s+/g, " ").trim();
+};
+
+/** Relative direction anywhere in a sentence; null if absent, "ambiguous" if both sides named. */
+export function detectRelative(raw: string): PushDirection | "ambiguous" | null {
+  const t = norm(raw);
+  const left = /\btail (to the )?left\b|\b(nose|facing|face) (to the )?right\b/.test(t);
+  const right = /\btail (to the )?right\b|\b(nose|facing|face) (to the )?left\b/.test(t);
+  if (left && right) return "ambiguous";
+  if (left) return "left";
+  if (right) return "right";
+  if (/\bstraight\b/.test(t)) return "straight";
+  return null;
+}
 
 type Intent =
   | "contact"
@@ -119,20 +154,25 @@ export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 } | 
   if (has("steering pin", "bypass pin", "remove pin", "remove the pin")) return { intent: "remove_pin" };
   if (has("disconnect", "tow bar", "towbar", "towing system", "tug away")) return { intent: "disconnect" };
   if (has("engines clear", "engine clear", "all clear", "area clear", "clear to start")) {
-    if (has("start")) return { intent: "start_engine", engine: t.includes("1") ? 1 : 2 };
+    if (has("start")) return { intent: "start_engine", engine: /\b1\b/.test(t) ? 1 : /\b2\b/.test(t) ? 2 : undefined };
     return { intent: "engines_clear" };
   }
-  if (has("start", "starting") && has("engine")) return { intent: "start_engine", engine: t.includes("1") ? 1 : 2 };
-  if (has("brake") && has("release", "off")) return { intent: "brakes_released" };
-  if (has("brake") && has("set", "on", "parked")) return { intent: "brakes_set" };
-  if (has("ready for push", "ready to push", "request push", "pushback", "push back", "ready for departure"))
+  if (has("start", "starting", "light up") && has("engine", "number")) {
+    const one = /\b1\b/.test(t), two = /\b2\b/.test(t);
+    return { intent: "start_engine", engine: one && !two ? 1 : two && !one ? 2 : undefined };
+  }
+  const rel = has("release", "off"), set = /\b(set|on|parked|applied)\b/.test(t);
+  if (has("brake") && rel && !set) return { intent: "brakes_released" };
+  if (has("brake") && set && !rel) return { intent: "brakes_set" };
+  if (has("ready for push", "ready to push", "request push", "pushback", "ready for departure", "ready to go", "request push"))
     return { intent: "ready_push" };
   if (has("equipment", "remove chocks", "chocks")) return { intent: "equipment_clear" };
   if (has("close") && has("door")) return { intent: "close_doors" };
   if (has("gpu", "ground power", "external power")) return { intent: "remove_gpu" };
-  if (has("tail left", "face right", "facing right")) return { intent: "dir_left" };
-  if (has("tail right", "face left", "facing left")) return { intent: "dir_right" };
-  if (has("straight")) return { intent: "dir_straight" };
+  const r = detectRelative(raw);
+  if (r === "left") return { intent: "dir_left" };
+  if (r === "right") return { intent: "dir_right" };
+  if (r === "straight") return { intent: "dir_straight" };
   if (has("status", "how long", "progress")) return { intent: "status" };
   if (has("thank", "bye", "good day", "cheers")) return { intent: "thanks" };
   if (has("ground", "cockpit", "how do you read", "radio check", "hello", "good morning", "good evening"))
@@ -144,11 +184,11 @@ export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 } | 
 export function suggestions(s: CrewState): string[] {
   switch (s.phase) {
     case "idle":
-      return ["Ground, cockpit, how do you read?"];
+      return ["Ground from cockpit, how do you read?"];
     case "connected":
     case "ready":
       if (!equipmentClear(s)) return ["Close all doors please.", "Disconnect ground power.", "Confirm ground equipment clear."];
-      return ["Ready for pushback."];
+      return ["Ready for pushback, facing west.", "Ready for push, tail left.", "Ready for pushback, straight back."];
     case "awaiting_release":
       return ["Brakes released."];
     case "pushing":
@@ -174,6 +214,9 @@ function push(s: CrewState, from: Message["from"], text: string): CrewState {
 
 export type Result = { state: CrewState; reply: string | null; effects: Effect[] };
 
+/** Pick a phrasing variant; rotates with the message counter so it's deterministic but varied. */
+const pick = (s: CrewState, ...v: string[]) => v[s.nextId % v.length];
+
 const crew = (s: CrewState, text: string, extra: Effect[] = []): Result => ({
   state: push(s, "crew", text),
   reply: text,
@@ -186,88 +229,95 @@ export function handlePilot(prev: CrewState, input: string): Result {
   if (!text) return { state: prev, reply: null, effects: [] };
   let s = push(prev, "pilot", text);
   const facing = detectFacing(text);
-  if (facing && ["idle", "connected", "ready"].includes(s.phase)) s = { ...s, facing };
+  const rel = detectRelative(text);
+  const early = ["idle", "connected", "ready"].includes(s.phase);
+  if (rel === "ambiguous") return crew(s, "Cockpit, say again direction, I copied both left and right.");
+  if (/\b(facing|nose|heading)\b/.test(norm(text)) && !facing && !rel && early)
+    return crew(s, "Cockpit, say again the direction you want to face after push.");
+  if (facing && early) s = { ...s, facing };
+  else if (rel && early) s = { ...s, direction: rel, facing: null };
   const m = detectIntent(text);
-  if (!m) return crew(s, `Say again, cockpit. Suggest: "${suggestions(prev)[0]}"`);
+  if (!m) return crew(s, pick(s, "Cockpit, ground, say again?", "Sorry cockpit, you were broken, say again.", "Ground, didn't copy that, say again please.") + ` (z. B. „${suggestions(prev)[0]}“)`);
 
   if (s.phase === "idle" && m.intent !== "contact")
-    return withPhase(crew(s, "Cockpit, ground here, I'm on the headset now. Please repeat your request."), "connected");
+    return withPhase(crew(s, pick(s, "Ground to cockpit, I'm on the headset now, go ahead with your request again.", "Cockpit, ground here, just plugged in. Say again your request?")), "connected");
 
   switch (m.intent) {
     case "contact":
-      if (s.phase === "idle") return withPhase(crew(s, "Ground to cockpit, reading you five by five. Headset connected, standing by."), "connected");
-      return crew(s, "Loud and clear, cockpit. Go ahead.");
+      if (s.phase === "idle") return withPhase(crew(s, pick(s, "Ground to cockpit, loud and clear. Ground power still connected, chocks in place. Go ahead.", "Cockpit, ground, reading you five. Turnaround nearly done, standing by.", "Hello cockpit, ground here, I read you fine. Ready when you are.")), "connected");
+      return crew(s, pick(s, "Loud and clear, go ahead.", "Reading you fine, cockpit, go ahead."));
 
     case "stop":
-      if (s.phase === "pushing") return withPhase(crew(s, "Stopping now! Pushback stopped. Set parking brake."), "push_complete");
-      return crew(s, "Copy, holding. We are not moving.");
+      if (s.phase === "pushing") return withPhase(crew(s, "Stopping! Tug stopped. Set parking brake and advise."), "push_complete");
+      return crew(s, "Copy, holding position, we are not moving.");
 
     case "close_doors":
       s = { ...s, ground: { ...s.ground, cargo: false, paxDoors: false, stairs: false } };
-      return crew(s, "Closing all cargo doors and removing the stairs. All doors closed.");
+      return crew(s, pick(s, "Copy, closing up the cargo holds and pulling the stairs. All doors closed and locked on the outside.", "Wilco. Cargo doors closed, stairs removed, all doors closed from my side."));
 
     case "remove_gpu":
       s = { ...s, ground: { ...s.ground, gpu: false } };
-      return crew(s, "Ground power disconnected. Confirm you are on APU power.");
+      return crew(s, pick(s, "Copy, removing ground power. GPU disconnected, confirm you're on APU.", "Ground power off and disconnected, cockpit. You're on your own power."));
 
     case "equipment_clear":
-      if (!["connected", "ready"].includes(s.phase)) return crew(s, "Ground equipment already clear, cockpit.");
-      if (s.ground.fuel) return crew(s, "Negative, refuelling still in progress. Stand by.");
+      if (!["connected", "ready"].includes(s.phase)) return crew(s, "Ground equipment is already clear, cockpit.");
+      if (s.ground.fuel) return crew(s, "Negative, refuelling still in progress. Stand by, I'll call you back.");
       s = { ...s, ground: Object.fromEntries(Object.keys(s.ground).map((k) => [k, false])) as CrewState["ground"] };
-      return withPhase(crew(s, "All doors closed, chocks removed, GPU disconnected. Ground equipment clear. Ready for pushback when you are."), "ready");
+      return withPhase(crew(s, pick(s, "All doors closed, GPU disconnected, chocks removed. Ground equipment clear, bypass pin inserted. Ready for push on your call.", "Doors closed, GPU removed, chocks out. Equipment's clear, tug in position. Call me when ready for pushback.")), "ready");
 
     case "dir_left":
     case "dir_right":
     case "dir_straight": {
       const d: PushDirection = m.intent === "dir_left" ? "left" : m.intent === "dir_right" ? "right" : "straight";
-      if (facing) return crew(s, `Copy, pushback facing ${facing}.`);
+      if (facing) return crew(s, `Copy, nose facing ${facing} after push.`);
       s = { ...s, direction: d, facing: null };
       return crew(s, `Copy, pushback ${dirPhrase(d)}.`);
     }
 
     case "ready_push":
-      if (!equipmentClear(s)) return crew(s, "Negative, cockpit. Ground equipment is not clear yet. Request equipment removal first.");
+      if (!equipmentClear(s)) return crew(s, "Negative, cockpit, not ready yet. Ground equipment is still at the aircraft, request removal first.");
       if (["connected", "ready"].includes(s.phase)) {
         s = { ...s, towbarConnected: true, pinInserted: true };
-        return withPhase(crew(s, `Tow bar connected, steering pin inserted. Pushback ${pushPhrase(s)}. Release parking brake.`), "awaiting_release");
+        return withPhase(crew(s, pick(s, `Copy, cleared for pushback ${pushPhrase(s)}. Tow bar connected, bypass pin inserted. Release parking brake.`, `Pushback ${pushPhrase(s)}, roger. Tug connected, pin is in. Release brakes please.`)), "awaiting_release");
       }
       return crew(s, "Pushback already in progress, cockpit.");
 
     case "brakes_released":
-      if (s.phase !== "awaiting_release") return crew(s, "Copy, but we are not ready to push. Please set brakes.");
-      return withPhase(crew(s, `Brakes released, pushing back ${pushPhrase(s)}. You are cleared to start engines.`, [{ type: "startPush" }]), "pushing");
+      if (s.phase !== "awaiting_release") return crew(s, "Negative, keep the brakes set, tug is not connected yet.");
+      return withPhase(crew(s, pick(s, `Brakes released, commencing pushback ${pushPhrase(s)}. Cleared to start engines.`, `Copy, brakes off. Starting push ${pushPhrase(s)}, cleared to start engines at your discretion.`), [{ type: "startPush" }]), "pushing");
 
     case "start_engine": {
-      const e = m.engine ?? 2;
-      if (!["pushing", "parked", "push_complete"].includes(s.phase)) return crew(s, "Negative, standby for engine start until pushback begins.");
+      if (!m.engine) return crew(s, "Cockpit, say again which engine, one or two?");
+      const e = m.engine;
+      if (!["pushing", "parked", "push_complete"].includes(s.phase)) return crew(s, "Negative, stand by for engine start, I'll call you.");
       s = { ...s, enginesRunning: { ...s.enginesRunning, [e]: true } };
-      return crew(s, `Area clear, cleared to start engine ${e === 1 ? "one" : "two"}.`);
+      return crew(s, pick(s, `Engine ${e === 1 ? "one" : "two"}, area is clear, cleared to start.`, `Copy, clear to start number ${e === 1 ? "one" : "two"}.`));
     }
 
     case "brakes_set":
-      if (s.phase === "push_complete") return withPhase(crew(s, "Parking brake set, copy. Continue engine start, call me when ready to disconnect."), "parked");
+      if (s.phase === "push_complete") return withPhase(crew(s, "Copy, parking brake set. Call me when ready for disconnect."), "parked");
       return crew(s, "Copy, parking brake set.");
 
     case "engines_clear":
-      if (s.phase === "disconnecting" && !s.pinInserted) return withPhase(crew(s, "All engines clear. Disconnecting headset now, watch for my hand signal on your left. Have a good flight!"), "complete");
-      return crew(s, "Engines area is clear, cockpit.");
+      if (s.phase === "disconnecting" && !s.pinInserted) return withPhase(crew(s, pick(s, "All clear. Disconnecting headset, look for hand signals on your left. Have a nice flight!", "Copy, all engines stable. Headset off now, hand signals on the left. Bye bye, good flight!")), "complete");
+      return crew(s, "Engine areas are clear, cockpit.");
 
     case "disconnect":
       if (s.phase !== "parked") return crew(s, s.phase === "pushing" ? "Negative, we are still moving." : "Negative, no tow bar to disconnect at this stage.");
       s = { ...s, towbarConnected: false };
-      return withPhase(crew(s, "Disconnecting tow bar. Tug is clear. Steering pin still installed, request removal."), "disconnecting");
+      return withPhase(crew(s, pick(s, "Copy, disconnecting. Tow bar disconnected, bypass pin still in, removing on your call.", "Disconnecting tug now. Tow bar is off, pin still installed.")), "disconnecting");
 
     case "remove_pin":
-      if (!s.pinInserted) return crew(s, "Steering pin is not installed, cockpit.");
+      if (!s.pinInserted) return crew(s, "Bypass pin is not installed, cockpit.");
       if (s.towbarConnected) return crew(s, "Negative, disconnect the towing system first.");
       s = { ...s, pinInserted: false };
-      return crew(s, "Steering pin removed, I'll show it on the left side. Confirm all engines clear before I disconnect.");
+      return crew(s, "Bypass pin removed, I'll show it on your left. Confirm engines stable before I disconnect headset.");
 
     case "status":
       return crew(s, statusLine(s));
 
     case "thanks":
-      if (s.phase === "complete") return crew(s, "You're welcome, have a safe flight. Ground out.");
+      if (s.phase === "complete") return crew(s, "You're welcome, have a good one. Ground out.");
       return crew(s, "Anytime, cockpit. Standing by.");
   }
 }
@@ -294,7 +344,7 @@ export function statusLine(s: CrewState): string {
 /** Push timer finished (called by the UI). */
 export function completePush(s: CrewState): Result {
   if (s.phase !== "pushing") return { state: s, reply: null, effects: [] };
-  return withPhase(crew(s, "Pushback complete. Set parking brake, please."), "push_complete");
+  return withPhase(crew(s, pick(s, "Pushback complete, set parking brake please.", "Stopping. Push complete, set brakes please.")), "push_complete");
 }
 
 export function toggleGround(s: CrewState, item: GroundItem): CrewState {
