@@ -7,6 +7,7 @@ import { pageHead } from "@/lib/meta";
 import { useSettings } from "@/lib/settings";
 import { speak, useVoices } from "@/lib/speech";
 import { cn } from "@/lib/utils";
+import { pickVoice } from "@/lib/tts/voice";
 
 export const Route = createFileRoute("/settings")({
   head: pageHead("Einstellungen", "Sprachausgabe, Stimme, Pushback-Dauer und Standardrichtung – lokal auf dem Gerät gespeichert."),
@@ -43,7 +44,11 @@ function SettingsPage() {
       <PageHeader title="Einstellungen" subtitle="Alle Einstellungen werden nur lokal auf diesem Gerät gespeichert." />
       <section className="panel px-5">
         <Row label="Sprachausgabe der Crew"><Toggle on={s.speak} onChange={(v) => update({ speak: v })} /></Row>
-        <Row label="Stimme" hint="Englische Stimmen deines Geräts">
+        <Row label="Natürliche Online-Stimmen" hint="Benötigt Internet. Bei Fehlern wird die Gerätestimme genutzt."><Toggle on={s.onlineVoice} onChange={(v) => update({ onlineVoice: v })} /></Row>
+        <Row label="Flughafen (ICAO)" hint={`Heutige Crew: ${pickVoice(s.airport).voice}, ${pickVoice(s.airport).accent} accent – wechselt je Flughafen und Tag`}>
+          <input className={sel + " w-32 uppercase"} maxLength={4} value={s.airport} onChange={(e) => update({ airport: e.target.value.toUpperCase() })} />
+        </Row>
+        <Row label="Gerätestimme" hint="Nur ohne Online-Stimmen">
           <select className={sel} value={s.voiceURI} onChange={(e) => update({ voiceURI: e.target.value })}>
             <option value="">Automatisch</option>
             {voices.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}

@@ -23,4 +23,11 @@ describe("crew engine", () => {
     s = run(["Parking brake set.", "Disconnect the towing system.", "Remove steering pin.", "All engines clear."], s);
     expect(s.phase).toBe("complete");
   });
+
+  it("understands pushback facing a compass direction", () => {
+    const s = run(["Ground, cockpit", "Confirm ground equipment clear.", "Pushback facing west."]);
+    expect(s.facing).toBe("west");
+    expect(s.phase).toBe("awaiting_release");
+    expect(s.log.at(-1)?.text).toContain("facing west");
+  });
 });

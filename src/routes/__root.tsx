@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CrewProvider } from "@/lib/crew/store";
 import { AppShell } from "@/components/AppShell";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -118,6 +119,7 @@ function RootComponent() {
       <CrewProvider>
         <AppShell>
           <Outlet />
+          <Toaster />
         </AppShell>
       </CrewProvider>
     </QueryClientProvider>

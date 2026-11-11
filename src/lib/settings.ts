@@ -10,6 +10,8 @@ export type Settings = {
   defaultDirection: PushDirection;
   showSuggestions: boolean;
   callsign: string;
+  airport: string;
+  onlineVoice: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +23,8 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultDirection: "straight",
   showSuggestions: true,
   callsign: "",
+  airport: "EDDF",
+  onlineVoice: true,
 };
 
 const KEY = "vgc.settings.v1";

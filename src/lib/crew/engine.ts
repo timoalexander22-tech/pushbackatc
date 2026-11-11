@@ -40,6 +40,7 @@ export type Message = { id: number; from: "pilot" | "crew" | "system"; text: str
 export type CrewState = {
   phase: Phase;
   direction: PushDirection;
+  facing: string | null; // compass direction the nose faces after push
   ground: Record<GroundItem, boolean>;
   enginesRunning: { 1: boolean; 2: boolean };
   towbarConnected: boolean;
@@ -51,6 +52,7 @@ export type CrewState = {
 export const initialState = (direction: PushDirection = "straight"): CrewState => ({
   phase: "idle",
   direction,
+  facing: null,
   ground: { gpu: true, chocks: true, cones: true, fuel: false, catering: false, cargo: true, paxDoors: true, stairs: true },
   enginesRunning: { 1: false, 2: false },
   towbarConnected: false,
@@ -60,6 +62,18 @@ export const initialState = (direction: PushDirection = "straight"): CrewState =
 });
 
 export const equipmentClear = (s: CrewState) => Object.values(s.ground).every((v) => !v);
+
+const pushPhrase = (s: CrewState) => (s.facing ? `facing ${s.facing}` : dirPhrase(s.direction));
+
+const COMPASS: [RegExp, string][] = [
+  [/\bnorth ?east\b/, "north-east"], [/\bnorth ?west\b/, "north-west"], [/\bsouth ?east\b/, "south-east"], [/\bsouth ?west\b/, "south-west"],
+  [/\bnorth\b/, "north"], [/\bsouth\b/, "south"], [/\beast\b/, "east"], [/\bwest\b/, "west"],
+];
+export function detectFacing(raw: string): string | null {
+  const t = norm(raw);
+  if (!/\b(facing|face|nose)\b/.test(t)) return null;
+  return COMPASS.find(([r]) => r.test(t))?.[1] ?? null;
+}
 
 const dirPhrase = (d: PushDirection) =>
   d === "straight" ? "straight back" : d === "left" ? "tail left, nose facing right" : "tail right, nose facing left";
@@ -171,6 +185,8 @@ export function handlePilot(prev: CrewState, input: string): Result {
   const text = input.trim();
   if (!text) return { state: prev, reply: null, effects: [] };
   let s = push(prev, "pilot", text);
+  const facing = detectFacing(text);
+  if (facing && ["idle", "connected", "ready"].includes(s.phase)) s = { ...s, facing };
   const m = detectIntent(text);
   if (!m) return crew(s, `Say again, cockpit. Suggest: "${suggestions(prev)[0]}"`);
 
@@ -204,7 +220,8 @@ export function handlePilot(prev: CrewState, input: string): Result {
     case "dir_right":
     case "dir_straight": {
       const d: PushDirection = m.intent === "dir_left" ? "left" : m.intent === "dir_right" ? "right" : "straight";
-      s = { ...s, direction: d };
+      if (facing) return crew(s, `Copy, pushback facing ${facing}.`);
+      s = { ...s, direction: d, facing: null };
       return crew(s, `Copy, pushback ${dirPhrase(d)}.`);
     }
 
@@ -212,13 +229,13 @@ export function handlePilot(prev: CrewState, input: string): Result {
       if (!equipmentClear(s)) return crew(s, "Negative, cockpit. Ground equipment is not clear yet. Request equipment removal first.");
       if (["connected", "ready"].includes(s.phase)) {
         s = { ...s, towbarConnected: true, pinInserted: true };
-        return withPhase(crew(s, `Tow bar connected, steering pin inserted. Pushback ${dirPhrase(s.direction)}. Release parking brake.`), "awaiting_release");
+        return withPhase(crew(s, `Tow bar connected, steering pin inserted. Pushback ${pushPhrase(s)}. Release parking brake.`), "awaiting_release");
       }
       return crew(s, "Pushback already in progress, cockpit.");
 
     case "brakes_released":
       if (s.phase !== "awaiting_release") return crew(s, "Copy, but we are not ready to push. Please set brakes.");
-      return withPhase(crew(s, `Brakes released, pushing back ${dirPhrase(s.direction)}. You are cleared to start engines.`, [{ type: "startPush" }]), "pushing");
+      return withPhase(crew(s, `Brakes released, pushing back ${pushPhrase(s)}. You are cleared to start engines.`, [{ type: "startPush" }]), "pushing");
 
     case "start_engine": {
       const e = m.engine ?? 2;

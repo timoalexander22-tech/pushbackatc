@@ -1,10 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { readSettings } from "./settings";
+import { crewSpeech } from "./tts/tts.functions";
+import { pickVoice } from "./tts/voice";
+
+let current: HTMLAudioElement | null = null;
+let seq = 0;
+
+export function stopSpeech() {
+  seq++;
+  current?.pause();
+  current = null;
+  if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+}
 
 export function speak(text: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  if (typeof window === "undefined") return;
   const s = readSettings();
   if (!s.speak) return;
+  if (s.onlineVoice) return void speakOnline(text, s.airport);
+  speakDevice(text);
+}
+
+async function speakOnline(text: string, airport: string) {
+  const my = ++seq;
+  current?.pause();
+  const { voice = "Charon", accent } = pickVoice(airport);
+  try {
+    const r = await crewSpeech({ data: { text, voice, accent } });
+    if (my !== seq) return;
+    if ("error" in r) throw new Error(r.error);
+    const a = new Audio(`data:${r.type};base64,${r.audio}`);
+    current = a;
+    await a.play();
+  } catch (e) {
+    if (my !== seq) return;
+    toast.error(`Online-Stimme fehlgeschlagen: ${e instanceof Error ? e.message : "Fehler"} – Gerätestimme wird genutzt.`);
+    speakDevice(text);
+  }
+}
+
+function speakDevice(text: string) {
+  if (!("speechSynthesis" in window)) return;
+  const s = readSettings();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "en-US";
   u.rate = s.rate;
@@ -50,7 +88,7 @@ export function useRecognition(onResult: (text: string) => void) {
     const w = window as any;
     const C = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!C) return;
-    window.speechSynthesis?.cancel();
+    stopSpeech();
     const r: Rec = new C();
     r.lang = "en-US";
     r.interimResults = false;

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { completePush, handlePilot, initialState, toggleGround, type CrewState, type GroundItem, type PushDirection, type Result } from "./engine";
 import { readSettings } from "../settings";
-import { speak } from "../speech";
+import { speak, stopSpeech } from "../speech";
 
 type Ctx = {
   state: CrewState;
@@ -57,7 +57,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     toggle: (item) => setState((s) => toggleGround(s, item)),
     setDirection: (d) => setState((s) => (["pushing", "push_complete", "parked", "disconnecting", "complete"].includes(s.phase) ? s : { ...s, direction: d })),
     reset: () => {
-      window.speechSynthesis?.cancel();
+      stopSpeech();
       setState(initialState(readSettings().defaultDirection));
     },
     pushProgress,
