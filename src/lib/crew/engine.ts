@@ -74,7 +74,7 @@ export function detectFacing(raw: string): string | null {
   if (!/\b(facing|face|nose|heading)\b/.test(t)) return null;
   const hits = COMPASS.filter(([r]) => r.test(t)).map(([, v]) => v);
   const main = hits.filter((h) => !hits.some((o) => o !== h && o.includes(h)));
-  return main.length === 1 ? main[0] : null;
+  return main.length === 1 ? (main[0] ?? null) : null;
 }
 
 const dirPhrase = (d: PushDirection) =>
@@ -96,11 +96,11 @@ const SPOKEN: [RegExp, string][] = [
   [/\bstraight back\b|\bstraight out\b|\bdirectly back\b/g, "straight"],
 ];
 function lev(a: string, b: string) {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0]![j] = j;
   for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-  return d[a.length][b.length];
+    for (let j = 1; j <= b.length; j++) d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length]![b.length]!;
 }
 const fix = (w: string) => {
   if (w.length < 5 || VOCAB.includes(w)) return w;
@@ -147,7 +147,7 @@ type Intent =
   | "stop"
   | "thanks";
 
-export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 } | null {
+export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 | undefined } | null {
   const t = norm(raw);
   const has = (...w: string[]) => w.some((x) => t.includes(x));
   if (has("stop", "hold position", "emergency")) return { intent: "stop" };
@@ -215,7 +215,7 @@ function push(s: CrewState, from: Message["from"], text: string): CrewState {
 export type Result = { state: CrewState; reply: string | null; effects: Effect[] };
 
 /** Pick a phrasing variant; rotates with the message counter so it's deterministic but varied. */
-const pick = (s: CrewState, ...v: string[]) => v[s.nextId % v.length];
+const pick = (s: CrewState, ...v: string[]): string => v[s.nextId % v.length] ?? v[0] ?? "";
 
 const crew = (s: CrewState, text: string, extra: Effect[] = []): Result => ({
   state: push(s, "crew", text),
