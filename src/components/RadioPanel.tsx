@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { Message } from "@/lib/crew/engine";
 import { speak, useRecognition } from "@/lib/speech";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/lib/settings";
+import { keyLabel, usePushToTalk } from "@/lib/ptt";
 
 export function RadioLog({ log, empty }: { log: Message[]; empty?: string | undefined }) {
   const end = useRef<HTMLDivElement>(null);
@@ -41,6 +43,8 @@ export function RadioLog({ log, empty }: { log: Message[]; empty?: string | unde
 export function CommandInput({ onSend, suggestions }: { onSend: (t: string) => void; suggestions?: string[] | undefined }) {
   const [text, setText] = useState("");
   const rec = useRecognition((t) => onSend(t));
+  const { settings } = useSettings();
+  const ptt = usePushToTalk(settings.pttKeys, rec.start, rec.stop, rec.cancel);
   const submit = () => {
     if (!text.trim()) return;
     onSend(text);
@@ -61,13 +65,31 @@ export function CommandInput({ onSend, suggestions }: { onSend: (t: string) => v
         <Button
           size="xl"
           variant={rec.listening ? "destructive" : "panel"}
-          className={cn("w-14 px-0", rec.listening && "animate-pulse-ring")}
-          onClick={rec.listening ? rec.stop : rec.start}
+          className={cn("w-14 shrink-0 touch-none select-none px-0", rec.listening && "animate-pulse-ring")}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            ptt.press(`pointer:${e.pointerId}`);
+          }}
+          onPointerUp={(e) => ptt.release(`pointer:${e.pointerId}`)}
+          onPointerCancel={(e) => ptt.release(`pointer:${e.pointerId}`)}
+          onLostPointerCapture={(e) => ptt.release(`pointer:${e.pointerId}`)}
+          onKeyDown={(e) => {
+            if ((e.code === "Space" || e.code === "Enter") && !e.repeat) {
+              e.preventDefault();
+              ptt.press(`button:${e.code}`);
+            }
+          }}
+          onKeyUp={(e) => ptt.release(`button:${e.code}`)}
+          onBlur={() => { ptt.release("button:Space"); ptt.release("button:Enter"); }}
+          onContextMenu={(e) => e.preventDefault()}
           disabled={!rec.supported}
-          aria-label={rec.listening ? "Aufnahme stoppen" : "Sprechen"}
-          title={rec.supported ? "Push to talk" : "Spracheingabe wird von diesem Browser nicht unterstützt"}
+          aria-label="Sprechtaste"
+          aria-pressed={ptt.pressed}
+          title={rec.supported ? `Push-to-Talk · ${settings.pttKeys.map(keyLabel).join(" / ")}` : "Spracheingabe wird von diesem Browser nicht unterstützt"}
         >
-          {rec.listening ? <MicOff className="!size-6" /> : <Mic className="!size-6" />}
+          {rec.listening ? <Mic className="!size-6" /> : <MicOff className="!size-6" />}
         </Button>
         <input
           value={text}

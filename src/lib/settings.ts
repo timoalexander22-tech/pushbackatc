@@ -12,6 +12,7 @@ export type Settings = {
   callsign: string;
   airport: string;
   onlineVoice: boolean;
+  pttKeys: [string, string];
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   callsign: "",
   airport: "EDDF",
   onlineVoice: true,
+  pttKeys: ["Space", "ControlRight"],
 };
 
 const KEY = "vgc.settings.v1";

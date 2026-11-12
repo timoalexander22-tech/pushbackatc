@@ -66,42 +66,115 @@ export function useVoices() {
   return voices;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Rec = any;
+type RecognitionEvent = { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>; resultIndex: number };
+type Recognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((e: RecognitionEvent) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => Recognition;
+  webkitSpeechRecognition?: new () => Recognition;
+};
 
 export function useRecognition(onResult: (text: string) => void) {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ref = useRef<Rec>(null);
+  const ref = useRef<Recognition | null>(null);
+  const held = useRef(false);
+  const started = useRef(false);
+  const transcript = useRef("");
   const cb = useRef(onResult);
   cb.current = onResult;
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
+    const w = window as SpeechWindow;
     setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
+    return () => {
+      held.current = false;
+      const r = ref.current;
+      ref.current = null;
+      r?.abort();
+    };
   }, []);
 
   const start = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
+    const w = window as SpeechWindow;
     const C = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!C) return;
+    const previous = ref.current;
+    ref.current = null;
+    previous?.abort();
     stopSpeech();
-    const r: Rec = new C();
+    const r = new C();
+    held.current = true;
+    started.current = false;
+    transcript.current = "";
     r.lang = "en-US";
-    r.interimResults = false;
+    r.interimResults = true;
+    r.continuous = true;
     r.maxAlternatives = 1;
-    r.onresult = (e: Rec) => cb.current(e.results[0][0].transcript);
-    r.onerror = (e: Rec) => setError(e.error === "not-allowed" ? "Mikrofon-Zugriff verweigert." : "Spracherkennung fehlgeschlagen. Bitte erneut versuchen.");
-    r.onend = () => setListening(false);
+    r.onstart = () => {
+      if (ref.current !== r) return;
+      started.current = true;
+      if (held.current) setListening(true);
+      else r.stop();
+    };
+    r.onresult = (e) => {
+      if (ref.current !== r) return;
+      transcript.current = Array.from(e.results).map((result) => result[0].transcript).join(" ").trim();
+    };
+    r.onerror = (e) => {
+      if (ref.current !== r) return;
+      transcript.current = "";
+      held.current = false;
+      setListening(false);
+      if (e.error !== "aborted" && e.error !== "no-speech") setError(e.error === "not-allowed" ? "Mikrofon-Zugriff verweigert." : "Spracherkennung fehlgeschlagen. Bitte erneut versuchen.");
+    };
+    r.onend = () => {
+      if (ref.current !== r) return;
+      ref.current = null;
+      started.current = false;
+      setListening(false);
+      const text = transcript.current;
+      transcript.current = "";
+      // Never send a command while a PTT control is still held.
+      if (!held.current && text) cb.current(text);
+    };
     ref.current = r;
     setError(null);
-    setListening(true);
-    r.start();
+    try {
+      r.start();
+    } catch {
+      ref.current = null;
+      held.current = false;
+      setListening(false);
+      setError("Mikrofon konnte nicht gestartet werden. Bitte erneut versuchen.");
+    }
   }, []);
 
-  const stop = useCallback(() => ref.current?.stop(), []);
-  return { supported, listening, error, start, stop };
+  const stop = useCallback(() => {
+    held.current = false;
+    setListening(false);
+    if (started.current) ref.current?.stop();
+  }, []);
+  const cancel = useCallback(() => {
+    held.current = false;
+    transcript.current = "";
+    const r = ref.current;
+    ref.current = null;
+    r?.abort();
+    started.current = false;
+    setListening(false);
+  }, []);
+  return { supported, listening, error, start, stop, cancel };
 }

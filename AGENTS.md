@@ -33,3 +33,4 @@ use the editor.
 - Ground-crew dialogue logic lives in pure TS (`src/lib/crew/engine.ts`) with no browser APIs, so a future Windows/SimConnect build can reuse it; React state wraps it in `store.tsx`.
 - iPad build is fully local (no backend, no accounts); settings persist in localStorage only, by product requirement.
 - PWA is manifest-only (no service worker) until offline support is explicitly requested.
+- PTT input arbitration lives in `src/lib/ptt.ts`; recognition stays in `speech.ts` and ends on last release or cancels on focus loss, so overlapping keyboard/touch holds cannot leave the microphone active.

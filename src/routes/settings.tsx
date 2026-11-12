@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { DIRECTION_LABEL, type PushDirection } from "@/lib/crew/engine";
@@ -8,6 +8,7 @@ import { useSettings } from "@/lib/settings";
 import { speak, useVoices } from "@/lib/speech";
 import { cn } from "@/lib/utils";
 import { pickVoice } from "@/lib/tts/voice";
+import { keyLabel } from "@/lib/ptt";
 
 export const Route = createFileRoute("/settings")({
   head: pageHead("Einstellungen", "Sprachausgabe, Stimme, Pushback-Dauer und Standardrichtung – lokal auf dem Gerät gespeichert."),
@@ -39,10 +40,39 @@ const sel = "h-12 rounded-xl border border-input bg-secondary px-3 text-foregrou
 function SettingsPage() {
   const { settings: s, update, reset } = useSettings();
   const voices = useVoices();
+  const [binding, setBinding] = useState<number | null>(null);
+  const [bindingError, setBindingError] = useState("");
   return (
     <>
       <PageHeader title="Einstellungen" subtitle="Alle Einstellungen werden nur lokal auf diesem Gerät gespeichert." />
       <section className="panel px-5">
+        <Row label="Push-to-Talk">
+          <div className="flex flex-wrap gap-2">
+            {s.pttKeys.map((code, index) => (
+              <Button key={index} variant={binding === index ? "cockpit" : "panel"} size="touch"
+                data-ptt-binding aria-label={`Sprechtaste ${index + 1} belegen`}
+                onClick={() => { setBinding(index); setBindingError(""); }}
+                onBlur={() => setBinding(null)}
+                onKeyDown={(e) => {
+                  if (binding !== index) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.code === "Escape") { setBinding(null); return; }
+                  if (e.repeat) return;
+                  if (!e.code || ["Tab", "MetaLeft", "MetaRight"].includes(e.code)) { setBindingError("Diese Taste ist nicht verfügbar."); return; }
+                  if (s.pttKeys[1 - index] === e.code) { setBindingError("Bitte zwei unterschiedliche Tasten wählen."); return; }
+                  const next: [string, string] = [...s.pttKeys];
+                  next[index] = e.code;
+                  update({ pttKeys: next });
+                  setBinding(null);
+                  setBindingError("");
+                }}>
+                {index + 1}: {binding === index ? "Taste drücken…" : keyLabel(code)}
+              </Button>
+            ))}
+          </div>
+        </Row>
+        {bindingError && <p role="alert" className="py-2 text-sm text-destructive">{bindingError}</p>}
         <Row label="Sprachausgabe der Crew"><Toggle on={s.speak} onChange={(v) => update({ speak: v })} /></Row>
         <Row label="Natürliche Online-Stimmen" hint="Benötigt Internet. Bei Fehlern wird die Gerätestimme genutzt."><Toggle on={s.onlineVoice} onChange={(v) => update({ onlineVoice: v })} /></Row>
         <Row label="Flughafen (ICAO)" hint={`Heutige Crew: ${pickVoice(s.airport).voice}, ${pickVoice(s.airport).accent} accent – wechselt je Flughafen und Tag`}>
