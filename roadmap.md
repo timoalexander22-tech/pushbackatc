@@ -3,3 +3,4 @@
 - [x] Natural online crew speech with airport/day selection and visible errors.
 - [x] Understand pushback facing compass headings.
 - [ ] MSFS 2020 automatic control and state-triggered calls: blocked until a Windows SimConnect companion is available and tested against the user's simulator.
+- [ ] Complete Windows edition with simulator synchronization: awaiting scope choice; this environment supports the web application, not a verified native Windows/SimConnect executable.
