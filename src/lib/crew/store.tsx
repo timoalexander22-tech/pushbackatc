@@ -21,7 +21,9 @@ export function CrewProvider({ children }: { children: ReactNode }) {
   stateRef.current = state;
 
   useEffect(() => {
-    setState(initialState(readSettings().defaultDirection));
+    const opening = initialState(readSettings().defaultDirection);
+    setState(opening);
+    speak("Cockpit, Ground.");
   }, []);
 
   const apply = useCallback((r: Result) => {
@@ -59,6 +61,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     reset: () => {
       stopSpeech();
       setState(initialState(readSettings().defaultDirection));
+      speak("Cockpit, Ground.");
     },
     pushProgress,
   };

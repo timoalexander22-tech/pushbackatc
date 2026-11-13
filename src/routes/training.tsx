@@ -13,14 +13,14 @@ export const Route = createFileRoute("/training")({
 });
 
 const EXPLAIN: Record<CrewState["phase"], string> = {
-  idle: "Stelle zuerst Interphone-Kontakt her – ein Funkcheck eröffnet den Dialog.",
+  idle: "Ground ruft: Cockpit, Ground. Antworte mit Ground, go ahead.",
   connected: "Die Abfertigung läuft. Lass Türen schließen, GPU trennen und bestätige, dass das Bodengerät entfernt ist.",
-  ready: "Alles frei. Jetzt kannst du den Pushback anfordern.",
+  ready: "Melde Pushback-Freigabe, Richtung und gelöste Bremsen zusammen.",
   awaiting_release: "Schlepper ist angekoppelt. Löse die Parkbremse und melde es der Crew.",
-  pushing: "Pushback läuft. Du kannst Triebwerk 2 starten. Tippe „Pushback abschließen“, um die Wartezeit zu überspringen.",
+  pushing: "Pushback läuft. Melde Starting engines two and one.",
   push_complete: "Flugzeug steht. Setze die Parkbremse und melde es.",
   parked: "Starte beide Triebwerke, danach den Schlepper trennen lassen.",
-  disconnecting: "Lass den Steering Pin entfernen und bestätige anschließend „all engines clear“.",
+  disconnecting: "Schlepper und Bypass Pin sind getrennt. Bestätige, dass du auf das Handzeichen links wartest.",
   complete: "Perfekt – Bodenabfertigung abgeschlossen! Verabschiede dich oder starte neu.",
 };
 

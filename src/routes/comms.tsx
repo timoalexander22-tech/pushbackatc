@@ -28,7 +28,7 @@ function Comms() {
         <span className="rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 font-display uppercase text-primary">{PHASE_LABEL[state.phase]}</span>
       </PageHeader>
       <div className="space-y-4">
-        <RadioLog log={state.log} empty={'Beginne mit „Ground, cockpit, how do you read?“'} />
+        <RadioLog log={state.log} />
         <CommandInput onSend={say} suggestions={settings.showSuggestions ? suggestions(state) : undefined} />
       </div>
     </>

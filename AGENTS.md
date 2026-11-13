@@ -30,6 +30,7 @@ use the editor.
 <!-- LOVABLE:END -->
 
 ## Architecture
+- The pure crew engine owns the opening radio log, combined clearance/brake transition and post-brake automatic disconnect; providers only execute its speech/timer effects to keep training and live dialogue consistent.
 - Ground-crew dialogue logic lives in pure TS (`src/lib/crew/engine.ts`) with no browser APIs, so a future Windows/SimConnect build can reuse it; React state wraps it in `store.tsx`.
 - iPad build is fully local (no backend, no accounts); settings persist in localStorage only, by product requirement.
 - PWA is manifest-only (no service worker) until offline support is explicitly requested.

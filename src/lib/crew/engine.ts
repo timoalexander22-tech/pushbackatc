@@ -57,8 +57,8 @@ export const initialState = (direction: PushDirection = "straight"): CrewState =
   enginesRunning: { 1: false, 2: false },
   towbarConnected: false,
   pinInserted: false,
-  log: [],
-  nextId: 1,
+  log: [{ id: 1, from: "crew", text: "Cockpit, Ground.", at: Date.now() }],
+  nextId: 2,
 });
 
 export const equipmentClear = (s: CrewState) => Object.values(s.ground).every((v) => !v);
@@ -96,11 +96,13 @@ const SPOKEN: [RegExp, string][] = [
   [/\bstraight back\b|\bstraight out\b|\bdirectly back\b/g, "straight"],
 ];
 function lev(a: string, b: string) {
-  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0]![j] = j;
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++) d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
-  return d[a.length]![b.length]!;
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) current[j] = Math.min((previous[j] ?? 0) + 1, (current[j - 1] ?? 0) + 1, (previous[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
+    previous = current;
+  }
+  return previous[b.length] ?? 0;
 }
 const fix = (w: string) => {
   if (w.length < 5 || VOCAB.includes(w)) return w;
@@ -130,6 +132,8 @@ export function detectRelative(raw: string): PushDirection | "ambiguous" | null 
 
 type Intent =
   | "contact"
+  | "go_ahead"
+  | "farewell"
   | "equipment_clear"
   | "close_doors"
   | "remove_gpu"
@@ -147,9 +151,11 @@ type Intent =
   | "stop"
   | "thanks";
 
-export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 | undefined } | null {
+export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 | undefined; engines?: (1 | 2)[] | undefined } | null {
   const t = norm(raw);
   const has = (...w: string[]) => w.some((x) => t.includes(x));
+  if (/\b(go ahead|ahead go)\b/.test(t)) return { intent: "go_ahead" };
+  if (has("standing by", "stand by", "visual signal", "safe flight")) return { intent: "farewell" };
   if (has("stop", "hold position", "emergency")) return { intent: "stop" };
   if (has("steering pin", "bypass pin", "remove pin", "remove the pin")) return { intent: "remove_pin" };
   if (has("disconnect", "tow bar", "towbar", "towing system", "tug away")) return { intent: "disconnect" };
@@ -159,7 +165,7 @@ export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 | un
   }
   if (has("start", "starting", "light up") && has("engine", "number")) {
     const one = /\b1\b/.test(t), two = /\b2\b/.test(t);
-    return { intent: "start_engine", engine: one && !two ? 1 : two && !one ? 2 : undefined };
+    return { intent: "start_engine", engine: one && !two ? 1 : two && !one ? 2 : undefined, engines: one && two && /\b(and|then)\b/.test(t) ? [2, 1] : undefined };
   }
   const rel = has("release", "off"), set = /\b(set|on|parked|applied)\b/.test(t);
   if (has("brake") && rel && !set) return { intent: "brakes_released" };
@@ -184,15 +190,15 @@ export function detectIntent(raw: string): { intent: Intent; engine?: 1 | 2 | un
 export function suggestions(s: CrewState): string[] {
   switch (s.phase) {
     case "idle":
-      return ["Ground from cockpit, how do you read?"];
+      return ["Ground, go ahead."];
     case "connected":
     case "ready":
       if (!equipmentClear(s)) return ["Close all doors please.", "Disconnect ground power.", "Confirm ground equipment clear."];
-      return ["Ready for pushback, facing west.", "Ready for push, tail left.", "Ready for pushback, straight back."];
+      return ["Roger, we have pushback clearance, facing north. Brakes are released.", "Ready for push, tail left. Brakes released.", "Ready for pushback, straight back. Brakes released."];
     case "awaiting_release":
       return ["Brakes released."];
     case "pushing":
-      return ["Starting engine two.", "Stop the pushback."];
+      return ["Starting engines two and one.", "Stop the pushback."];
     case "push_complete":
       return ["Parking brake set."];
     case "parked":
@@ -200,7 +206,7 @@ export function suggestions(s: CrewState): string[] {
       if (!s.enginesRunning[1]) return ["Starting engine one."];
       return ["Disconnect the towing system."];
     case "disconnecting":
-      return s.pinInserted ? ["Remove steering pin."] : ["All engines clear, thank you."];
+      return s.pinInserted ? ["Remove steering pin."] : ["Roger, standing by on the left. Have a safe flight!"];
     case "complete":
       return ["Thanks for your help, good day."];
   }
@@ -223,6 +229,12 @@ const crew = (s: CrewState, text: string, extra: Effect[] = []): Result => ({
   effects: [{ type: "speak", text }, ...extra],
 });
 
+const readyReport = (s: CrewState): Result => {
+  if (s.ground.fuel) return crew(s, "Refuelling is still in progress. Stand by for pushback.");
+  const ground = Object.fromEntries(Object.keys(s.ground).map((k) => [k, false])) as CrewState["ground"];
+  return withPhase(crew({ ...s, ground, pinInserted: true }, "All doors and hatches are closed, chocks are removed, bypass pin is installed. Ready for pushback when you are."), "ready");
+};
+
 /** Main entry: pilot says something, crew answers based on context. */
 export function handlePilot(prev: CrewState, input: string): Result {
   const text = input.trim();
@@ -230,7 +242,7 @@ export function handlePilot(prev: CrewState, input: string): Result {
   let s = push(prev, "pilot", text);
   const facing = detectFacing(text);
   const rel = detectRelative(text);
-  const early = ["idle", "connected", "ready"].includes(s.phase);
+  const early = ["idle", "connected", "ready", "awaiting_release"].includes(s.phase);
   if (rel === "ambiguous") return crew(s, "Cockpit, say again direction, I copied both left and right.");
   if (/\b(facing|nose|heading)\b/.test(norm(text)) && !facing && !rel && early)
     return crew(s, "Cockpit, say again the direction you want to face after push.");
@@ -239,10 +251,26 @@ export function handlePilot(prev: CrewState, input: string): Result {
   const m = detectIntent(text);
   if (!m) return crew(s, pick(s, "Cockpit, ground, say again?", "Sorry cockpit, you were broken, say again.", "Ground, didn't copy that, say again please.") + ` (z. B. „${suggestions(prev)[0]}“)`);
 
-  if (s.phase === "idle" && m.intent !== "contact")
+  const normalized = norm(text);
+  const pushRequested = /\bpushback\b|\bready (for|to) push\b|\brequest push\b/.test(normalized);
+  const brakeRelease = /\bbrakes?\b/.test(normalized) && /\b(released?|off)\b/.test(normalized);
+  if (pushRequested && brakeRelease) {
+    if (/\b(set|on|applied|not|never|don t)\b/.test(normalized)) return crew(s, "Cockpit, confirm parking brake status before pushback.");
+    if (!equipmentClear(s) || !["ready", "connected", "awaiting_release"].includes(s.phase)) return crew(s, "Negative, cockpit. Stand by until ground equipment is clear and the tug is connected.");
+    s = { ...s, towbarConnected: true, pinInserted: true };
+    return withPhase(crew(s, `Brakes released, commencing pushback, ${pushPhrase(s)}. Cleared to start engines at your discretion.`, [{ type: "startPush" }]), "pushing");
+  }
+
+  if (s.phase === "idle" && m.intent !== "contact" && m.intent !== "go_ahead")
     return withPhase(crew(s, pick(s, "Ground to cockpit, I'm on the headset now, go ahead with your request again.", "Cockpit, ground here, just plugged in. Say again your request?")), "connected");
 
   switch (m.intent) {
+    case "go_ahead":
+      if (["idle", "connected", "ready"].includes(s.phase)) return readyReport(s);
+      return crew(s, statusLine(s));
+    case "farewell":
+      if (s.phase === "disconnecting" && !s.pinInserted && !s.towbarConnected) return withPhase(crew(s, "Thank you, goodbye!"), "complete");
+      return crew(s, "Stand by, ground operations are not complete yet.");
     case "contact":
       if (s.phase === "idle") return withPhase(crew(s, pick(s, "Ground to cockpit, loud and clear. Ground power still connected, chocks in place. Go ahead.", "Cockpit, ground, reading you five. Turnaround nearly done, standing by.", "Hello cockpit, ground here, I read you fine. Ready when you are.")), "connected");
       return crew(s, pick(s, "Loud and clear, go ahead.", "Reading you fine, cockpit, go ahead."));
@@ -287,15 +315,20 @@ export function handlePilot(prev: CrewState, input: string): Result {
       return withPhase(crew(s, pick(s, `Brakes released, commencing pushback ${pushPhrase(s)}. Cleared to start engines.`, `Copy, brakes off. Starting push ${pushPhrase(s)}, cleared to start engines at your discretion.`), [{ type: "startPush" }]), "pushing");
 
     case "start_engine": {
-      if (!m.engine) return crew(s, "Cockpit, say again which engine, one or two?");
+      if (!m.engine && !m.engines) return crew(s, "Cockpit, say again which engine, one or two?");
       const e = m.engine;
       if (!["pushing", "parked", "push_complete"].includes(s.phase)) return crew(s, "Negative, stand by for engine start, I'll call you.");
+      if (m.engines) {
+        s = { ...s, enginesRunning: { 1: true, 2: true } };
+        return crew(s, "Starting engines two and one, roger. Both engine areas are clear.");
+      }
+      if (!e) return crew(s, "Cockpit, say again which engine, one or two?");
       s = { ...s, enginesRunning: { ...s.enginesRunning, [e]: true } };
       return crew(s, pick(s, `Engine ${e === 1 ? "one" : "two"}, area is clear, cleared to start.`, `Copy, clear to start number ${e === 1 ? "one" : "two"}.`));
     }
 
     case "brakes_set":
-      if (s.phase === "push_complete") return withPhase(crew(s, "Copy, parking brake set. Call me when ready for disconnect."), "parked");
+      if (s.phase === "push_complete") return withPhase(crew({ ...s, towbarConnected: false, pinInserted: false }, "Disconnecting tow bar and removing bypass pin. Stand by for visual signal on the left side."), "disconnecting");
       return crew(s, "Copy, parking brake set.");
 
     case "engines_clear":
@@ -317,7 +350,7 @@ export function handlePilot(prev: CrewState, input: string): Result {
       return crew(s, statusLine(s));
 
     case "thanks":
-      if (s.phase === "complete") return crew(s, "You're welcome, have a good one. Ground out.");
+      if (s.phase === "complete" || (s.phase === "disconnecting" && !s.pinInserted)) return withPhase(crew(s, "Thank you, goodbye!"), "complete");
       return crew(s, "Anytime, cockpit. Standing by.");
   }
 }
@@ -344,7 +377,7 @@ export function statusLine(s: CrewState): string {
 /** Push timer finished (called by the UI). */
 export function completePush(s: CrewState): Result {
   if (s.phase !== "pushing") return { state: s, reply: null, effects: [] };
-  return withPhase(crew(s, pick(s, "Pushback complete, set parking brake please.", "Stopping. Push complete, set brakes please.")), "push_complete");
+  return withPhase(crew(s, "Pushback completed. Set parking brake."), "push_complete");
 }
 
 export function toggleGround(s: CrewState, item: GroundItem): CrewState {

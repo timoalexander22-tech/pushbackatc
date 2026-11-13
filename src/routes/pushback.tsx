@@ -25,14 +25,14 @@ function Pushback() {
   const lastCrew = [...state.log].reverse().find((m) => m.from === "crew");
 
   const steps = [
-    { label: "Interphone-Kontakt", done: p !== "idle", action: () => say("Ground, cockpit, how do you read?") },
+    { label: "Ground antworten", done: p !== "idle", action: () => say("Ground, go ahead.") },
     { label: "Bodengerät entfernt", done: equipmentClear(state), action: () => say("Confirm ground equipment clear.") },
-    { label: "Pushback anfordern", done: locked, action: () => say("Ready for pushback.") },
+    { label: "Freigabe & Bremse gelöst", done: locked, action: () => say(`Roger, we have pushback clearance, ${state.facing ? `facing ${state.facing}` : state.direction === "straight" ? "straight back" : `tail ${state.direction}`}. Brakes are released.`) },
     { label: "Parkbremse lösen", done: ["pushing", "push_complete", "parked", "disconnecting", "complete"].includes(p), action: () => say("Brakes released.") },
     { label: "Parkbremse setzen", done: ["parked", "disconnecting", "complete"].includes(p), action: () => say("Parking brake set.") },
     { label: "Schlepper trennen", done: ["disconnecting", "complete"].includes(p), action: () => say("Disconnect the towing system.") },
     { label: "Steering Pin entfernen", done: (p === "disconnecting" || p === "complete") && !state.pinInserted, action: () => say("Remove steering pin.") },
-    { label: "Engines clear bestätigen", done: p === "complete", action: () => say("All engines clear, thank you.") },
+    { label: "Handzeichen links bestätigen", done: p === "complete", action: () => say("Roger, standing by on the left. Have a safe flight!") },
   ];
   const next = steps.findIndex((s) => !s.done);
 
@@ -107,6 +107,11 @@ function Pushback() {
               </li>
             ))}
           </ol>
+          {p === "pushing" && (
+            <Button variant="cockpit" size="xl" className="mt-4 w-full" disabled={state.enginesRunning[1] && state.enginesRunning[2]} onClick={() => say("Starting engines two and one.")}>
+              Triebwerke 2 und 1 starten
+            </Button>
+          )}
           {p === "pushing" && (
             <Button variant="destructive" size="xl" className="mt-4 w-full" onClick={() => say("Stop the pushback.")}>
               STOP

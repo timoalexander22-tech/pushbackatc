@@ -15,17 +15,18 @@ export const Route = createFileRoute("/tutorial")({
 const STEPS = [
   { title: "Willkommen", body: "Virtual Ground Crew Pro simuliert eine realistische Bodencrew für den Fenix A320 im MSFS 2020. Die App läuft eigenständig auf dem iPad – ohne GSX und parallel zu BeyondATC.", cmds: [] },
   { title: "Die App im Überblick", body: "Dashboard zeigt die aktuelle Phase. Unter „Funk“ sprichst du mit der Crew, unter „Ground Ops“ siehst du Türen, GPU und Bremsklötze, unter „Pushback“ wählst du die Richtung.", cmds: [] },
-  { title: "Verbindung & Funk", body: "Tippe auf das Mikrofon und sprich englisch – oder tippe das Kommando. Die Crew antwortet per Sprachausgabe. Starte jeden Turnaround mit einem Funkcheck.", cmds: ["Ground, cockpit, how do you read?"] },
+  { title: "Verbindung & Funk", body: "Ground eröffnet mit Cockpit, Ground. Halte eine Sprechtaste beim Sprechen gedrückt und lasse sie danach los.", cmds: ["Ground, go ahead."] },
   { title: "Ground-Crew-Kommandos", body: "Die Crew versteht natürliche Formulierungen. Wichtig ist die Reihenfolge: erst Türen und GPU, dann Equipment clear.", cmds: ["Close all doors please.", "Disconnect ground power.", "Confirm ground equipment clear."] },
-  { title: "Pushback vorbereiten", body: "Ist alles frei, fordere den Pushback an. Die Crew koppelt den Schlepper an, setzt den Steering Pin und bittet dich, die Parkbremse zu lösen.", cmds: ["Ready for pushback.", "Brakes released."] },
-  { title: "Pushback-Richtungen", body: "Straight = gerade zurück. Tail left = Heck nach links, Nase zeigt danach nach rechts. Tail right = umgekehrt. Während des Pushbacks darfst du die Triebwerke starten.", cmds: ["Push tail left.", "Starting engine two."] },
-  { title: "Abschluss", body: "Nach dem Stopp Parkbremse setzen, Triebwerke starten, Schlepper trennen, Steering Pin entfernen und „engines clear“ bestätigen. Die Crew verabschiedet sich mit Handzeichen links.", cmds: ["Parking brake set.", "Disconnect the towing system.", "Remove steering pin.", "All engines clear, thank you."] },
+  { title: "Pushback vorbereiten", body: "Ground meldet Türen und Luken geschlossen, Bremsklötze entfernt und Bypass Pin installiert. Melde danach Freigabe, Richtung und gelöste Bremsen.", cmds: ["Roger, we have pushback clearance, facing north. Brakes are released."] },
+  { title: "Pushback-Richtungen", body: "Facing north bezeichnet die gewünschte Ausrichtung. Tail left = Heck nach links, Tail right = Heck nach rechts. Während des Pushbacks darfst du beide Triebwerke starten.", cmds: ["Starting engines two and one."] },
+  { title: "Abschluss", body: "Nach dem Stopp Parkbremse setzen und bestätigen. Ground trennt automatisch Schlepper und Bypass Pin und kündigt das Handzeichen links an.", cmds: ["Parking brake is set.", "Roger, standing by on the left. Have a safe flight!"] },
 ];
 
 function Tutorial() {
   const [done, setDone] = useLocalFlag<number[]>("vgc.tutorial.v1", []);
   const [i, setI] = useState(0);
-  const s = STEPS[i] ?? STEPS[0]!;
+  const s = STEPS[i] ?? STEPS[0];
+  if (!s) return null;
   const isDone = done.includes(i);
   return (
     <>
