@@ -34,3 +34,4 @@ use the editor.
 - iPad build is fully local (no backend, no accounts); settings persist in localStorage only, by product requirement.
 - PWA is manifest-only (no service worker) until offline support is explicitly requested.
 - PTT input arbitration lives in `src/lib/ptt.ts`; recognition stays in `speech.ts` and ends on last release or cancels on focus loss, so overlapping keyboard/touch holds cannot leave the microphone active.
+- SimBrief OFP reads use a validated public server function and local flight storage; import airport/callsign only, never infer live position or pushback direction from a planned runway.

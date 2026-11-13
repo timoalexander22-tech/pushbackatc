@@ -6,6 +6,7 @@ import { useCrew } from "@/lib/crew/store";
 import { DIRECTION_LABEL, equipmentClear, PHASE_LABEL, PHASE_ORDER, statusLine } from "@/lib/crew/engine";
 import { pageHead } from "@/lib/meta";
 import { cn } from "@/lib/utils";
+import { SimbriefPanel } from "@/components/SimbriefPanel";
 
 export const Route = createFileRoute("/")({
   head: pageHead("Dashboard", "Überblick über Bodenabfertigung, Pushback-Status und Funkverkehr mit der Bodencrew."),
@@ -53,6 +54,7 @@ function Dashboard() {
         {last && <p className="mt-4 rounded-xl bg-secondary px-4 py-3 font-mono text-sm">Ground: “{last.text}”</p>}
       </section>
 
+      <SimbriefPanel />
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {TILES.map(({ to, title, desc, icon: Icon }) => (
           <Link key={to} to={to} className="panel group flex min-h-32 flex-col justify-between p-5 transition-transform active:scale-[0.98]">

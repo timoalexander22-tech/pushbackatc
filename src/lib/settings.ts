@@ -13,6 +13,8 @@ export type Settings = {
   airport: string;
   onlineVoice: boolean;
   pttKeys: [string, string];
+  simbriefKind: "userid" | "username";
+  simbriefId: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +29,8 @@ export const DEFAULT_SETTINGS: Settings = {
   airport: "EDDF",
   onlineVoice: true,
   pttKeys: ["Space", "ControlRight"],
+  simbriefKind: "userid",
+  simbriefId: "",
 };
 
 const KEY = "vgc.settings.v1";

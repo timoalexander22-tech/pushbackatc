@@ -9,6 +9,7 @@ import { speak, useVoices } from "@/lib/speech";
 import { cn } from "@/lib/utils";
 import { pickVoice } from "@/lib/tts/voice";
 import { keyLabel } from "@/lib/ptt";
+import { SimbriefPanel } from "@/components/SimbriefPanel";
 
 export const Route = createFileRoute("/settings")({
   head: pageHead("Einstellungen", "Sprachausgabe, Stimme, Pushback-Dauer und Standardrichtung – lokal auf dem Gerät gespeichert."),
@@ -45,6 +46,7 @@ function SettingsPage() {
   return (
     <>
       <PageHeader title="Einstellungen" subtitle="Alle Einstellungen werden nur lokal auf diesem Gerät gespeichert." />
+      <SimbriefPanel />
       <section className="panel px-5">
         <Row label="Push-to-Talk">
           <div className="flex flex-wrap gap-2">
