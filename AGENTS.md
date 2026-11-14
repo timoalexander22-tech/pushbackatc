@@ -36,3 +36,4 @@ use the editor.
 - PWA is manifest-only (no service worker) until offline support is explicitly requested.
 - PTT input arbitration lives in `src/lib/ptt.ts`; voice input records WAV from the chosen input device (`audio/recorder.ts`) and transcribes server-side via `stt.functions.ts`, because browser speech recognition cannot select devices and was unreliable.
 - SimBrief OFP reads use a validated public server function and local flight storage; import airport/callsign only, never infer live position or pushback direction from a planned runway.
+- Audio device tests run locally, using the same WAV recorder and selected speaker routing; recordings are never uploaded and are released on focus loss or unmount.
