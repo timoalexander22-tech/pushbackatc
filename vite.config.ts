@@ -15,4 +15,16 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    define: {
+      __APP_BUILD__: JSON.stringify(
+        process.env["VERCEL_GIT_COMMIT_SHA"] ||
+          process.env["CF_PAGES_COMMIT_SHA"] ||
+          new Date().toISOString(),
+      ),
+    },
+    server: {
+      allowedHosts: ["sb-13rl6p22iv6a.vercel.run"],
+    },
+  },
 });
