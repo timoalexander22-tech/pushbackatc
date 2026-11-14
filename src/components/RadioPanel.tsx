@@ -104,6 +104,7 @@ export function CommandInput({ onSend, suggestions }: { onSend: (t: string) => v
         </Button>
       </div>
       {!rec.supported && <p className="text-sm text-muted-foreground">Spracheingabe ist in diesem Browser nicht verfügbar – bitte Texteingabe nutzen.</p>}
+      {rec.busy && <p className="text-sm text-muted-foreground">Funkspruch wird erkannt…</p>}
       {rec.error && <p className="text-sm text-destructive">{rec.error}</p>}
     </div>
   );

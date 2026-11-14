@@ -15,6 +15,8 @@ export type Settings = {
   pttKeys: [string, string];
   simbriefKind: "userid" | "username";
   simbriefId: string;
+  inputDeviceId: string;
+  outputDeviceId: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -31,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pttKeys: ["Space", "ControlRight"],
   simbriefKind: "userid",
   simbriefId: "",
+  inputDeviceId: "",
+  outputDeviceId: "",
 };
 
 const KEY = "vgc.settings.v1";

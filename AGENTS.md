@@ -34,5 +34,5 @@ use the editor.
 - Ground-crew dialogue logic lives in pure TS (`src/lib/crew/engine.ts`) with no browser APIs, so a future Windows/SimConnect build can reuse it; React state wraps it in `store.tsx`.
 - iPad build is fully local (no backend, no accounts); settings persist in localStorage only, by product requirement.
 - PWA is manifest-only (no service worker) until offline support is explicitly requested.
-- PTT input arbitration lives in `src/lib/ptt.ts`; recognition stays in `speech.ts` and ends on last release or cancels on focus loss, so overlapping keyboard/touch holds cannot leave the microphone active.
+- PTT input arbitration lives in `src/lib/ptt.ts`; voice input records WAV from the chosen input device (`audio/recorder.ts`) and transcribes server-side via `stt.functions.ts`, because browser speech recognition cannot select devices and was unreliable.
 - SimBrief OFP reads use a validated public server function and local flight storage; import airport/callsign only, never infer live position or pushback direction from a planned runway.

@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { readSettings } from "./settings";
 import { crewSpeech } from "./tts/tts.functions";
 import { pickVoice } from "./tts/voice";
+import { blobToBase64, recordWav, type Recording } from "./audio/recorder";
+import { transcribeRadio } from "./audio/stt.functions";
 
 let current: HTMLAudioElement | null = null;
 let seq = 0;
@@ -32,6 +34,9 @@ async function speakOnline(text: string, airport: string) {
     if ("error" in r) throw new Error(r.error);
     const a = new Audio(`data:${r.type};base64,${r.audio}`);
     current = a;
+    const sink = readSettings().outputDeviceId;
+    const routed = a as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+    if (sink && routed.setSinkId) await routed.setSinkId(sink).catch(() => toast.error("Ausgabegerät nicht verfügbar – Standardlautsprecher wird genutzt."));
     await a.play();
   } catch (e) {
     if (my !== seq) return;
@@ -66,115 +71,93 @@ export function useVoices() {
   return voices;
 }
 
-type RecognitionEvent = { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>; resultIndex: number };
-type Recognition = {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  maxAlternatives: number;
-  onstart: (() => void) | null;
-  onresult: ((e: RecognitionEvent) => void) | null;
-  onerror: ((e: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-};
-type SpeechWindow = Window & {
-  SpeechRecognition?: new () => Recognition;
-  webkitSpeechRecognition?: new () => Recognition;
-};
-
-export function useRecognition(onResult: (text: string) => void) {
+export function useRecognition(onResult: (text: string) => void, deps: { record?: typeof recordWav; transcribe?: (audio: string) => Promise<{ text: string } | { error: string }> } = {}) {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ref = useRef<Recognition | null>(null);
-  const held = useRef(false);
-  const started = useRef(false);
-  const transcript = useRef("");
+  const session = useRef(0);
+  const pending = useRef<Promise<Recording | null> | null>(null);
   const cb = useRef(onResult);
   cb.current = onResult;
+  const record = deps.record ?? recordWav;
+  const transcribe = deps.transcribe ?? ((audio: string) => transcribeRadio({ data: { audio } }));
 
   useEffect(() => {
-    const w = window as SpeechWindow;
-    setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
-    return () => {
-      held.current = false;
-      const r = ref.current;
-      ref.current = null;
-      r?.abort();
-    };
+    setSupported(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
+    return () => { session.current++; void pending.current?.then((r) => r?.cancel()); };
   }, []);
 
   const start = useCallback(() => {
-    const w = window as SpeechWindow;
-    const C = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!C) return;
-    const previous = ref.current;
-    ref.current = null;
-    previous?.abort();
+    const my = ++session.current;
     stopSpeech();
-    const r = new C();
-    held.current = true;
-    started.current = false;
-    transcript.current = "";
-    r.lang = "en-US";
-    r.interimResults = true;
-    r.continuous = true;
-    r.maxAlternatives = 1;
-    r.onstart = () => {
-      if (ref.current !== r) return;
-      started.current = true;
-      if (held.current) setListening(true);
-      else r.stop();
-    };
-    r.onresult = (e) => {
-      if (ref.current !== r) return;
-      transcript.current = Array.from(e.results).map((result) => result[0].transcript).join(" ").trim();
-    };
-    r.onerror = (e) => {
-      if (ref.current !== r) return;
-      transcript.current = "";
-      held.current = false;
-      setListening(false);
-      if (e.error !== "aborted" && e.error !== "no-speech") setError(e.error === "not-allowed" ? "Mikrofon-Zugriff verweigert." : "Spracherkennung fehlgeschlagen. Bitte erneut versuchen.");
-    };
-    r.onend = () => {
-      if (ref.current !== r) return;
-      ref.current = null;
-      started.current = false;
-      setListening(false);
-      const text = transcript.current;
-      transcript.current = "";
-      // Never send a command while a PTT control is still held.
-      if (!held.current && text) cb.current(text);
-    };
-    ref.current = r;
     setError(null);
-    try {
-      r.start();
-    } catch {
-      ref.current = null;
-      held.current = false;
-      setListening(false);
-      setError("Mikrofon konnte nicht gestartet werden. Bitte erneut versuchen.");
-    }
-  }, []);
+    setListening(true);
+    pending.current = record(readSettings().inputDeviceId).catch((e: unknown) => {
+      if (my === session.current) {
+        setListening(false);
+        setError(e instanceof DOMException && e.name === "NotAllowedError" ? "Mikrofon-Zugriff verweigert." : "Mikrofon konnte nicht gestartet werden. Bitte Eingabegerät prüfen.");
+      }
+      return null;
+    });
+  }, [record]);
 
   const stop = useCallback(() => {
-    held.current = false;
+    const my = session.current;
+    const p = pending.current;
+    pending.current = null;
     setListening(false);
-    if (started.current) ref.current?.stop();
-  }, []);
+    if (!p) return;
+    void (async () => {
+      const rec = await p;
+      if (!rec) return;
+      const blob = await rec.stop();
+      if (my !== session.current) return;
+      if (blob.size < 8000) { setError("Zu kurz gesprochen – Taste während des ganzen Satzes halten."); return; }
+      setBusy(true);
+      try {
+        const r = await transcribe(await blobToBase64(blob));
+        if (my !== session.current) return;
+        if ("error" in r) setError(r.error);
+        else if (r.text) cb.current(r.text);
+        else setError("Keine Sprache erkannt. Bitte erneut versuchen.");
+      } catch {
+        if (my === session.current) setError("Spracherkennung fehlgeschlagen. Bitte erneut versuchen.");
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [transcribe]);
+
   const cancel = useCallback(() => {
-    held.current = false;
-    transcript.current = "";
-    const r = ref.current;
-    ref.current = null;
-    r?.abort();
-    started.current = false;
+    session.current++;
+    const p = pending.current;
+    pending.current = null;
     setListening(false);
+    void p?.then((r) => r?.cancel());
   }, []);
-  return { supported, listening, error, start, stop, cancel };
+  return { supported, listening, busy, error, start, stop, cancel };
+}
+
+export function useAudioDevices() {
+  const [inputs, setInputs] = useState<MediaDeviceInfo[]>([]);
+  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([]);
+  const load = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    const d = await navigator.mediaDevices.enumerateDevices();
+    setInputs(d.filter((x) => x.kind === "audioinput" && x.deviceId));
+    setOutputs(d.filter((x) => x.kind === "audiooutput" && x.deviceId));
+  }, []);
+  const unlock = useCallback(async () => {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());
+    await load();
+  }, [load]);
+  useEffect(() => {
+    void load();
+    navigator.mediaDevices?.addEventListener?.("devicechange", load);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", load);
+  }, [load]);
+  const canRouteOutput = typeof HTMLAudioElement !== "undefined" && "setSinkId" in HTMLAudioElement.prototype;
+  return { inputs, outputs, unlock, canRouteOutput };
 }

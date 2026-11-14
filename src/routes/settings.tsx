@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DIRECTION_LABEL, type PushDirection } from "@/lib/crew/engine";
 import { pageHead } from "@/lib/meta";
 import { useSettings } from "@/lib/settings";
-import { speak, useVoices } from "@/lib/speech";
+import { speak, useAudioDevices, useVoices } from "@/lib/speech";
 import { cn } from "@/lib/utils";
 import { pickVoice } from "@/lib/tts/voice";
 import { keyLabel } from "@/lib/ptt";
@@ -41,6 +41,7 @@ const sel = "h-12 rounded-xl border border-input bg-secondary px-3 text-foregrou
 function SettingsPage() {
   const { settings: s, update, reset } = useSettings();
   const voices = useVoices();
+  const dev = useAudioDevices();
   const [binding, setBinding] = useState<number | null>(null);
   const [bindingError, setBindingError] = useState("");
   return (
@@ -75,6 +76,21 @@ function SettingsPage() {
           </div>
         </Row>
         {bindingError && <p role="alert" className="py-2 text-sm text-destructive">{bindingError}</p>}
+        <Row label="Mikrofon (Eingang)" hint="Gerätenamen erscheinen nach Freigabe des Mikrofons.">
+          <div className="flex flex-wrap gap-2">
+            <select className={sel + " max-w-64"} value={s.inputDeviceId} onChange={(e) => update({ inputDeviceId: e.target.value })}>
+              <option value="">Systemstandard</option>
+              {dev.inputs.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mikrofon ${i + 1}`}</option>)}
+            </select>
+            <Button variant="panel" size="touch" onClick={() => void dev.unlock().catch(() => setBindingError("Mikrofon-Zugriff verweigert."))}>Geräte laden</Button>
+          </div>
+        </Row>
+        <Row label="Lautsprecher (Ausgang)" hint={dev.canRouteOutput ? "Gilt für die Online-Crewstimme." : "Dieser Browser (z. B. Safari/iPad) erlaubt keine Auswahl – Ausgabe über Systemeinstellung."}>
+          <select className={sel + " max-w-64"} disabled={!dev.canRouteOutput} value={s.outputDeviceId} onChange={(e) => update({ outputDeviceId: e.target.value })}>
+            <option value="">Systemstandard</option>
+            {dev.outputs.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Lautsprecher ${i + 1}`}</option>)}
+          </select>
+        </Row>
         <Row label="Sprachausgabe der Crew"><Toggle on={s.speak} onChange={(v) => update({ speak: v })} /></Row>
         <Row label="Natürliche Online-Stimmen" hint="Benötigt Internet. Bei Fehlern wird die Gerätestimme genutzt."><Toggle on={s.onlineVoice} onChange={(v) => update({ onlineVoice: v })} /></Row>
         <Row label="Flughafen (ICAO)" hint={`Heutige Crew: ${pickVoice(s.airport).voice}, ${pickVoice(s.airport).accent} accent – wechselt je Flughafen und Tag`}>
