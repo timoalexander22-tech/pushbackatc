@@ -17,6 +17,10 @@ export type Settings = {
   simbriefId: string;
   inputDeviceId: string;
   outputDeviceId: string;
+  simMode: "off" | "local" | "relay";
+  simUrl: string;
+  simCode: string;
+  autoUpdateCheck: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -35,6 +39,10 @@ export const DEFAULT_SETTINGS: Settings = {
   simbriefId: "",
   inputDeviceId: "",
   outputDeviceId: "",
+  simMode: "off",
+  simUrl: "ws://localhost:8787",
+  simCode: "",
+  autoUpdateCheck: true,
 };
 
 const KEY = "vgc.settings.v1";

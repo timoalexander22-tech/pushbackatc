@@ -1,5 +1,24 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { completePush, handlePilot, initialState, toggleGround, type CrewState, type GroundItem, type PushDirection, type Result } from "./engine";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useSim } from "../sim/store";
+import {
+  completePush,
+  handlePilot,
+  initialState,
+  simEvent,
+  toggleGround,
+  type CrewState,
+  type GroundItem,
+  type PushDirection,
+  type Result,
+} from "./engine";
 import { readSettings } from "../settings";
 import { speak, stopSpeech } from "../speech";
 
@@ -33,10 +52,70 @@ export function CrewProvider({ children }: { children: ReactNode }) {
 
   const say = useCallback((text: string) => apply(handlePilot(stateRef.current, text)), [apply]);
 
-  // Simulated push timer (UI only — no simulator control in this build).
+  const sim = useSim();
+  const live = sim.status === "live";
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  const simPushing = useRef(false);
+
+  // Real aircraft state edges drive the matching crew calls.
+  const prevSim = useRef(sim.state);
   useEffect(() => {
+    const cur = sim.state,
+      prev = prevSim.current;
+    prevSim.current = cur;
+    if (!cur?.simConnected || !prev?.simConnected) return;
+    if (prev.parkingBrake && !cur.parkingBrake)
+      apply(simEvent(stateRef.current, { type: "brakeReleased" }));
+    if (!prev.parkingBrake && cur.parkingBrake)
+      apply(simEvent(stateRef.current, { type: "brakeSet" }));
+    for (const e of [1, 2] as const)
+      if (!prev.engines[e] && cur.engines[e])
+        apply(simEvent(stateRef.current, { type: "engineStarted", engine: e }));
+  }, [sim.state, apply]);
+
+  useEffect(
+    () =>
+      sim.onPushDone(() => {
+        simPushing.current = false;
+        apply(completePush(stateRef.current));
+      }),
+    [sim, apply],
+  );
+
+  // Start the tug in the sim when the dialogue begins pushing; stop it if the phase ends early (e.g. "stop").
+  useEffect(() => {
+    if (state.phase === "pushing" && liveRef.current && !simPushing.current) {
+      simPushing.current = true;
+      sim.send({
+        type: "cmd",
+        cmd: "push_start",
+        direction: stateRef.current.direction,
+        facing: stateRef.current.facing,
+        seconds: readSettings().pushSeconds,
+      });
+    } else if (state.phase !== "pushing" && simPushing.current) {
+      simPushing.current = false;
+      sim.send({ type: "cmd", cmd: "push_stop" });
+    }
+  }, [state.phase, sim]);
+
+  const simProgress = sim.state?.push.active ? sim.state.push.progress : null;
+  useEffect(() => {
+    if (simPushing.current && simProgress !== null) setProgress(simProgress);
+  }, [simProgress]);
+
+  // Simulated push timer when no simulator is connected.
+  useEffect(() => {
+    if (state.phase === "pushing" && simPushing.current) return;
     if (state.phase !== "pushing") {
-      if (state.phase !== "push_complete" && state.phase !== "parked" && state.phase !== "disconnecting" && state.phase !== "complete") setProgress(0);
+      if (
+        state.phase !== "push_complete" &&
+        state.phase !== "parked" &&
+        state.phase !== "disconnecting" &&
+        state.phase !== "complete"
+      )
+        setProgress(0);
       else setProgress(1);
       return;
     }
@@ -57,7 +136,12 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     state,
     say,
     toggle: (item) => setState((s) => toggleGround(s, item)),
-    setDirection: (d) => setState((s) => (["pushing", "push_complete", "parked", "disconnecting", "complete"].includes(s.phase) ? s : { ...s, direction: d })),
+    setDirection: (d) =>
+      setState((s) =>
+        ["pushing", "push_complete", "parked", "disconnecting", "complete"].includes(s.phase)
+          ? s
+          : { ...s, direction: d },
+      ),
     reset: () => {
       stopSpeech();
       setState(initialState(readSettings().defaultDirection));

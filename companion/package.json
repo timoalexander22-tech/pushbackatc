@@ -1,0 +1,19 @@
+{
+  "name": "virtual-ground-crew-companion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows bridge between MSFS 2020 (SimConnect) and the Virtual Ground Crew app.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "node-simconnect": "^4.0.0",
+    "ws": "^8.18.0"
+  }
+}
