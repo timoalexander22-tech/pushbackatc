@@ -363,6 +363,39 @@ fn normalize_github_repository(repository: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(&url)
+        .map_err(|_| "Ungültige externe Adresse.".to_string())?;
+    if parsed.scheme() != "https" && parsed.scheme() != "http" {
+        return Err("Nur HTTP- und HTTPS-Adressen werden unterstützt.".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("rundll32.exe");
+        command.arg("url.dll,FileProtocolHandler").arg(parsed.as_str());
+        command
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(parsed.as_str());
+        command
+    };
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(parsed.as_str());
+        command
+    };
+
+    command
+        .spawn()
+        .map_err(|error| format!("Externe Adresse konnte nicht geöffnet werden: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn check_latest_release(repository: String) -> Result<serde_json::Value, String> {
     let repository = normalize_github_repository(&repository)?;
     let response = reqwest::Client::new()
@@ -558,6 +591,7 @@ fn main() {
             open_plugin_folder,
             write_app_log,
             backup_app_config,
+            open_external_url,
             check_latest_release,
             download_installer,
             run_installer

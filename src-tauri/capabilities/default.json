@@ -3,5 +3,15 @@
   "identifier": "default",
   "description": "Default permissions for the Virtual Ground Crew window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "allow-list_plugins",
+    "allow-open_plugin_folder",
+    "allow-write_app_log",
+    "allow-backup_app_config",
+    "allow-open_external_url",
+    "allow-check_latest_release",
+    "allow-download_installer",
+    "allow-run_installer"
+  ]
 }

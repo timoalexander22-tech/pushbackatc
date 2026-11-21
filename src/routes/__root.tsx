@@ -15,6 +15,7 @@ import { CrewProvider } from "@/lib/crew/store";
 import { SimProvider } from "@/lib/sim/store";
 import { AppShell } from "@/components/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { AudioPermissionGate } from "@/components/AudioPermissionGate";
 
 function NotFoundComponent() {
   return (
@@ -120,15 +121,17 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
-    <QueryClientProvider client={queryClient}>
-      <SimProvider>
-        <CrewProvider>
-          <AppShell>
-            <Outlet />
-            <Toaster />
-          </AppShell>
-        </CrewProvider>
-      </SimProvider>
-    </QueryClientProvider>
+    <AudioPermissionGate>
+      <QueryClientProvider client={queryClient}>
+        <SimProvider>
+          <CrewProvider>
+            <AppShell>
+              <Outlet />
+              <Toaster />
+            </AppShell>
+          </CrewProvider>
+        </SimProvider>
+      </QueryClientProvider>
+    </AudioPermissionGate>
   );
 }

@@ -38,6 +38,20 @@ const repositoryUrl = (value: string) => {
   return `https://github.com/${trimmed.replace(/^github\.com\//i, "").replace(/\.git$/i, "")}`;
 };
 
+const normalizeRepositoryDraft = (value: string) => {
+  const trimmed = value.trim().replace(/\/$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\/github\.com\//i.test(trimmed)) {
+    return trimmed
+      .replace(/^https?:\/\/github\.com\//i, "")
+      .replace(/\.git$/i, "");
+  }
+  return trimmed
+    .replace(/^github\.com\//i, "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/\.git$/i, "");
+};
+
 function UpdatesPage() {
   const u = useUpdateCheck();
   const sim = useSim();
@@ -48,6 +62,34 @@ function UpdatesPage() {
   const [updateMessage, setUpdateMessage] = useState("");
   const updateError = u.isError || !!u.statusError;
   const [repositoryDraft, setRepositoryDraft] = useState(settings.updateRepositoryUrl);
+
+  const openExternalUrl = async (url: string) => {
+    try {
+      if ("__TAURI_INTERNALS__" in window || "__TAURI__" in window) {
+        await invoke("open_external_url", { url });
+        return;
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setUpdateMessage(
+        error instanceof Error
+          ? error.message
+          : "Die externe Adresse konnte nicht geöffnet werden.",
+      );
+    }
+  };
+
+  const saveRepository = () => {
+    const normalized = normalizeRepositoryDraft(repositoryDraft);
+    if (!/^[^/\s]+\/[^/\s]+$/.test(normalized)) {
+      setUpdateMessage("Repository-Format: Besitzer/Repository oder vollständige GitHub-URL.");
+      return;
+    }
+    setRepositoryDraft(normalized);
+    update({ updateRepositoryUrl: normalized });
+    setUpdateMessage("Repository gespeichert. Die Updateprüfung wird neu gestartet.");
+    void u.refetch();
+  };
 
   const downloadAndInstall = async () => {
     const isDesktop =
@@ -60,7 +102,7 @@ function UpdatesPage() {
       u.latest?.assets?.find((item) => /\.exe$/i.test(item.name)) ??
       u.latest?.assets?.find((item) => /\.msi$/i.test(item.name));
     if (!asset) {
-      if (u.latest?.pageUrl) window.open(u.latest.pageUrl, "_blank", "noopener,noreferrer");
+      if (u.latest?.pageUrl) void openExternalUrl(u.latest.pageUrl);
       return;
     }
     setUpdating(true);
@@ -126,10 +168,13 @@ function UpdatesPage() {
             </p>
           </div>
           <Button variant="panel" size="touch" asChild>
-            <a href={repositoryUrl(settings.updateRepositoryUrl)} target="_blank" rel="noreferrer">
+            <button
+              type="button"
+              onClick={() => void openExternalUrl(repositoryUrl(settings.updateRepositoryUrl))}
+            >
               <ExternalLink className="size-4" aria-hidden="true" />
               Repository öffnen
-            </a>
+            </button>
           </Button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -139,8 +184,7 @@ function UpdatesPage() {
             onChange={(event) => setRepositoryDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                update({ updateRepositoryUrl: repositoryDraft.trim() });
-                void u.refetch();
+                saveRepository();
               }
             }}
             aria-label="GitHub-Repository"
@@ -149,10 +193,7 @@ function UpdatesPage() {
           <Button
             variant="panel"
             size="touch"
-            onClick={() => {
-              update({ updateRepositoryUrl: repositoryDraft.trim() });
-              void u.refetch();
-            }}
+            onClick={saveRepository}
           >
             Repository speichern
           </Button>
@@ -280,10 +321,12 @@ function UpdatesPage() {
               )}
             </div>
           </div>
-          <Button asChild variant={companionOld ? "cockpit" : "panel"} size="touch">
-            <a href={COMPANION_DOWNLOAD} target="_blank" rel="noreferrer">
-              <Download className="size-4" aria-hidden="true" /> Companion herunterladen
-            </a>
+          <Button
+            variant={companionOld ? "cockpit" : "panel"}
+            size="touch"
+            onClick={() => void openExternalUrl(COMPANION_DOWNLOAD)}
+          >
+            <Download className="size-4" aria-hidden="true" /> Companion herunterladen
           </Button>
         </div>
       </section>
