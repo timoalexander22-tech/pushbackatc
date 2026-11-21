@@ -1,5 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpen, GraduationCap, Headset, MoveDown, RotateCcw, Truck } from "lucide-react";
+import {
+  BookOpen,
+  GraduationCap,
+  Headset,
+  MoveDown,
+  RotateCcw,
+  Settings,
+  Truck,
+} from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { useCrew } from "@/lib/crew/store";
@@ -65,10 +73,19 @@ function Dashboard() {
             </div>
           </Link>
         ))}
-        <div className="panel flex flex-col justify-center gap-1 border-dashed p-5 text-sm text-muted-foreground">
-          <div className="font-display text-lg uppercase text-foreground">Windows-Version</div>
-          SimConnect- und Fenix-Anbindung sind in Planung. Diese iPad-Version simuliert den Ablauf – sie steuert den Simulator nicht.
-        </div>
+        <Link
+          to="/settings"
+          hash="simulator"
+          className="panel group flex min-h-32 flex-col justify-between p-5 transition-transform active:scale-[0.98]"
+        >
+          <Settings className="size-8 text-primary" />
+          <div>
+            <div className="font-display text-xl font-semibold uppercase">Windows Simulator</div>
+            <div className="text-sm text-muted-foreground">
+              MSFS 2020 über den SimConnect-Companion verbinden
+            </div>
+          </div>
+        </Link>
       </section>
     </>
   );

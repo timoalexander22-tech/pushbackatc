@@ -1,0 +1,12 @@
+[package]
+name = "pushbackatc"
+version = "1.2.0"
+description = "Virtual Ground Crew for MSFS 2020"
+authors = ["PushbackATC"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

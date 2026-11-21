@@ -23,6 +23,25 @@ npm i
 npm run dev
 ```
 
+## Windows-Desktop-App
+
+The Windows edition is a Tauri desktop app. The installer bundles the app server,
+SimConnect companion, Whisper/Piper service executables, and Node.js runtime.
+It starts the companion and local speech services automatically, using `base.en`
+for STT and `en_US-lessac-medium` for TTS by default. Whisper and Piper voice
+models download locally on first launch/recognition; later runs can work offline.
+The installer bootstraps WebView2 when needed.
+
+To build the unsigned Windows installers on Windows 10/11 x64, install Node.js 22,
+Python 3.12, Rust stable, and the Microsoft C++ build tools, then run:
+
+```powershell
+./scripts/build-windows-installer.ps1
+```
+
+The MSI and NSIS installers are written under `src-tauri/target/release/bundle/`.
+No Node.js or Python installation is needed on users' PCs after installing the app.
+
 ## Speech providers (local development)
 
 Speech-to-text and text-to-speech run on local server processes. Neither service sends audio or text to a cloud provider, and no API key is needed. After the app dependencies, Python packages, and speech models have been installed/downloaded once, the training and speech features work without an internet connection. The sidecar start scripts skip package installation when their local dependencies are already present.

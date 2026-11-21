@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Virtual Ground Crew",
+  "version": "1.2.0",
+  "identifier": "com.pushbackatc.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev:desktop",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build:desktop",
+    "frontendDist": "../.output/public"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": ["../public/favicon.ico"],
+    "resources": {
+      "../.output/": "app/",
+      "../companion/": "companion/",
+      "../local-stt/dist/local-stt/": "speech/stt/",
+      "../local-tts/dist/local-tts/": "speech/tts/",
+      "resources/runtime/node.exe": "runtime/node.exe"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  }
+}

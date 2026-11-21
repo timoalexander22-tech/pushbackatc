@@ -11,6 +11,13 @@ node_modules
 dist
 dist-ssr
 .output
+.tauri
+src-tauri/target
+src-tauri/resources/runtime/node.exe
+local-stt/build
+local-tts/build
+.build-envs
+__pycache__
 .vinxi
 .tanstack/**
 .nitro

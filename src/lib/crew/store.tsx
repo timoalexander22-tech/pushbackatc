@@ -57,6 +57,8 @@ export function CrewProvider({ children }: { children: ReactNode }) {
   const liveRef = useRef(live);
   liveRef.current = live;
   const simPushing = useRef(false);
+  const simPushAttempted = useRef(false);
+  const pushStartedAt = useRef<number | null>(null);
 
   // Real aircraft state edges drive the matching crew calls.
   const prevSim = useRef(sim.state);
@@ -83,32 +85,44 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     [sim, apply],
   );
 
-  // Start the tug in the sim when the dialogue begins pushing; stop it if the phase ends early (e.g. "stop").
+  // Select simulator or timed pushback once per push, so a late connection cannot start the tug unexpectedly.
   useEffect(() => {
-    if (state.phase === "pushing" && liveRef.current && !simPushing.current) {
-      simPushing.current = true;
-      sim.send({
-        type: "cmd",
-        cmd: "push_start",
-        direction: stateRef.current.direction,
-        facing: stateRef.current.facing,
-        seconds: readSettings().pushSeconds,
-      });
-    } else if (state.phase !== "pushing" && simPushing.current) {
-      simPushing.current = false;
-      sim.send({ type: "cmd", cmd: "push_stop" });
+    if (state.phase !== "pushing") {
+      if (simPushing.current) {
+        simPushing.current = false;
+        sim.send({ type: "cmd", cmd: "push_stop" });
+      }
+      simPushAttempted.current = false;
+      return;
     }
-  }, [state.phase, sim]);
+
+    if (!simPushAttempted.current) {
+      simPushAttempted.current = true;
+      if (liveRef.current) {
+        simPushing.current = true;
+        sim.send({
+          type: "cmd",
+          cmd: "push_start",
+          direction: stateRef.current.direction,
+          facing: stateRef.current.facing,
+          seconds: readSettings().pushSeconds,
+        });
+      }
+    } else if (!liveRef.current && simPushing.current) {
+      simPushing.current = false;
+    }
+  }, [state.phase, sim, live]);
 
   const simProgress = sim.state?.push.active ? sim.state.push.progress : null;
   useEffect(() => {
     if (simPushing.current && simProgress !== null) setProgress(simProgress);
   }, [simProgress]);
 
-  // Simulated push timer when no simulator is connected.
+  // Continue with the simulated timer if the simulator disconnects during pushback.
   useEffect(() => {
     if (state.phase === "pushing" && simPushing.current) return;
     if (state.phase !== "pushing") {
+      pushStartedAt.current = null;
       if (
         state.phase !== "push_complete" &&
         state.phase !== "parked" &&
@@ -120,7 +134,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
       return;
     }
     const total = readSettings().pushSeconds * 1000;
-    const t0 = Date.now();
+    const t0 = (pushStartedAt.current ??= Date.now());
     const id = setInterval(() => {
       const p = Math.min(1, (Date.now() - t0) / total);
       setProgress(p);
@@ -130,7 +144,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
       }
     }, 200);
     return () => clearInterval(id);
-  }, [state.phase, apply]);
+  }, [state.phase, apply, live]);
 
   const value: Ctx = {
     state,

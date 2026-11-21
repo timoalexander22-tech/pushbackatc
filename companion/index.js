@@ -1,8 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { randomInt } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { open, Protocol, SimConnectConstants, SimConnectDataType, SimConnectPeriod } from "node-simconnect";
 import WebSocket, { WebSocketServer } from "ws";
+import { fileURLToPath } from "node:url";
 
 const here = (p) => new URL(p, import.meta.url);
 const VERSION = JSON.parse(readFileSync(here("./package.json"), "utf8")).version;
@@ -18,10 +20,17 @@ function readEnv(file) {
   );
 }
 const env = { ...readEnv(here("../.env")), ...process.env };
-const config = { port: 8787, invertSteering: false, ...(existsSync(here("./config.json")) ? JSON.parse(readFileSync(here("./config.json"), "utf8")) : {}) };
+const dataDir = env.VGC_COMPANION_DATA_DIR || fileURLToPath(new URL(".", import.meta.url));
+const configPath = join(dataDir, "config.json");
+const config = {
+  port: 8787,
+  invertSteering: false,
+  ...(existsSync(configPath) ? JSON.parse(readFileSync(configPath, "utf8")) : {}),
+};
 
 function pairingCode() {
-  const file = here("./pairing-code.txt");
+  mkdirSync(dataDir, { recursive: true });
+  const file = join(dataDir, "pairing-code.txt");
   if (existsSync(file)) return readFileSync(file, "utf8").trim();
   const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const code = Array.from({ length: 6 }, () => abc[randomInt(abc.length)]).join("");

@@ -1,0 +1,37 @@
+name: Windows desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "local-stt/**"
+      - "local-tts/**"
+      - "companion/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - ".github/workflows/windows-desktop.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - shell: pwsh
+        run: ./scripts/build-windows-installer.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: virtual-ground-crew-windows
+          path: src-tauri/target/release/bundle/

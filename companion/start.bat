@@ -7,9 +7,20 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+where npm >nul 2>nul
+if errorlevel 1 (
+  echo npm wurde nicht gefunden. Bitte Node.js LTS von https://nodejs.org erneut installieren.
+  pause
+  exit /b 1
+)
 if not exist node_modules (
   echo Installiere Abhaengigkeiten, einmalig...
   call npm install --omit=dev
+  if errorlevel 1 (
+    echo Abhaengigkeiten konnten nicht installiert werden.
+    pause
+    exit /b 1
+  )
 )
 node index.js
 pause
