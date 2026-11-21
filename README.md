@@ -46,6 +46,10 @@ No Node.js or Python installation is needed on users' PCs after installing the a
 
 Speech-to-text and text-to-speech run on local server processes. Neither service sends audio or text to a cloud provider, and no API key is needed. After the app dependencies, Python packages, and speech models have been installed/downloaded once, the training and speech features work without an internet connection. The sidecar start scripts skip package installation when their local dependencies are already present.
 
+For one manually managed Python environment, install both speech services with
+`py -3.12 -m pip install -r requirements.txt`. The Windows desktop build keeps
+the STT and TTS packaging environments isolated.
+
 SimBrief import, the tablet internet relay, and downloading app/companion updates require internet only when those optional features are used.
 
 ### Local faster-whisper (CPU INT8, optional NVIDIA GPU)
