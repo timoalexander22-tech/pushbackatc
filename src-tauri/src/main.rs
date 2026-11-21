@@ -446,7 +446,7 @@ fn main() {
     tauri::Builder::default()
         .manage(ChildProcesses::default())
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api } = event {
+            if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let app = window.app_handle();
                 app.state::<ChildProcesses>().stop();
