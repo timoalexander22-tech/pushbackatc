@@ -1,0 +1,39 @@
+[[permission]]
+identifier = "allow-list-plugins"
+description = "Allows listing installed community plugins."
+commands.allow = ["list_plugins"]
+
+[[permission]]
+identifier = "allow-open-plugin-folder"
+description = "Allows opening the community plugin folder."
+commands.allow = ["open_plugin_folder"]
+
+[[permission]]
+identifier = "allow-write-app-log"
+description = "Allows writing application log entries."
+commands.allow = ["write_app_log"]
+
+[[permission]]
+identifier = "allow-backup-app-config"
+description = "Allows creating a local application configuration backup."
+commands.allow = ["backup_app_config"]
+
+[[permission]]
+identifier = "allow-open-external-url"
+description = "Allows opening validated HTTP and HTTPS URLs in the system browser."
+commands.allow = ["open_external_url"]
+
+[[permission]]
+identifier = "allow-check-latest-release"
+description = "Allows checking the latest release for a GitHub repository."
+commands.allow = ["check_latest_release"]
+
+[[permission]]
+identifier = "allow-download-installer"
+description = "Allows downloading a release installer."
+commands.allow = ["download_installer"]
+
+[[permission]]
+identifier = "allow-run-installer"
+description = "Allows launching a downloaded release installer."
+commands.allow = ["run_installer"]

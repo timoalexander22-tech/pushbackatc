@@ -5,13 +5,13 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "allow-list_plugins",
-    "allow-open_plugin_folder",
-    "allow-write_app_log",
-    "allow-backup_app_config",
-    "allow-open_external_url",
-    "allow-check_latest_release",
-    "allow-download_installer",
-    "allow-run_installer"
+    "allow-list-plugins",
+    "allow-open-plugin-folder",
+    "allow-write-app-log",
+    "allow-backup-app-config",
+    "allow-open-external-url",
+    "allow-check-latest-release",
+    "allow-download-installer",
+    "allow-run-installer"
   ]
 }
