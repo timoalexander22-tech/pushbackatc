@@ -3,12 +3,43 @@ import { useSettings } from "./settings";
 import { APP_VERSION } from "./version";
 import { getLatestRelease } from "./version.functions";
 import { isNewerVersion } from "./updates-core";
+import { invoke } from "@tauri-apps/api/core";
 
 export function useUpdateCheck() {
   const { settings } = useSettings();
   const q = useQuery({
-    queryKey: ["latest-release"],
-    queryFn: () => getLatestRelease(),
+    queryKey: ["latest-release", settings.updateRepositoryUrl],
+    queryFn: async () => {
+      const isDesktop =
+        typeof window !== "undefined" &&
+        ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+      if (isDesktop) {
+        try {
+          const result = await invoke<{
+            release: import("./updates-core").UpdateRelease | null;
+            configured: boolean;
+          }>("check_latest_release", {
+            repository: settings.updateRepositoryUrl,
+          });
+          return {
+            build: 0,
+            version: APP_VERSION,
+            companion: "unknown",
+            ...result,
+          };
+        } catch (error) {
+          return {
+            build: 0,
+            version: APP_VERSION,
+            companion: "unknown",
+            release: null,
+            configured: true,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+      return getLatestRelease();
+    },
     refetchInterval: settings.autoUpdateCheck ? 10 * 60 * 1000 : false,
     refetchOnWindowFocus: settings.autoUpdateCheck,
     retry: 1,

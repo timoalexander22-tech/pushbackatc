@@ -22,6 +22,7 @@ export type Settings = {
   simUrl: string;
   simCode: string;
   autoUpdateCheck: boolean;
+  updateRepositoryUrl: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -45,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   simUrl: "ws://localhost:8787",
   simCode: "",
   autoUpdateCheck: true,
+  updateRepositoryUrl: "https://github.com/timoalexander22-tech/pushbackatc",
 };
 
 const KEY = "vgc.settings.v1";

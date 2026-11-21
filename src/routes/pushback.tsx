@@ -52,8 +52,17 @@ function Pushback() {
               {DIRS.map(({ d, icon: Icon }) => (
                 <button
                   key={d}
-                  disabled={locked}
+                  disabled={locked && p !== "pushing"}
                   onClick={() => setDirection(d)}
+                  onPointerDown={() => {
+                    if (p === "pushing") setDirection(d);
+                  }}
+                  onPointerUp={() => {
+                    if (p === "pushing" && d !== "straight") setDirection("straight");
+                  }}
+                  onPointerLeave={() => {
+                    if (p === "pushing" && d !== "straight") setDirection("straight");
+                  }}
                   className={cn(
                     "flex h-28 flex-col items-center justify-center gap-2 rounded-xl border-2 text-sm transition-colors disabled:opacity-50",
                     state.direction === d ? "border-primary bg-primary/15 text-primary" : "border-border bg-secondary text-secondary-foreground",
@@ -86,7 +95,7 @@ function Pushback() {
             </div>
           </div>
           <p className="flex gap-2 text-sm text-muted-foreground">
-            <Info className="mt-0.5 size-4 shrink-0" /> Simulation: Diese Version bewegt das Flugzeug im MSFS nicht. Echte Pushback-Steuerung folgt mit der Windows-Version.
+            <Info className="mt-0.5 size-4 shrink-0" /> Mit aktiviertem Windows-Companion bewegt diese Steuerung den Pushback live im MSFS.
           </p>
         </section>
 

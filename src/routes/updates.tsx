@@ -20,7 +20,6 @@ import { useSim } from "@/lib/sim/store";
 import { useUpdateCheck } from "@/lib/updates";
 import { APP_VERSION, CHANGELOG } from "@/lib/version";
 import { writeAppLog } from "@/lib/log";
-import { UPDATE_CONFIG } from "@/lib/update-config";
 
 export const Route = createFileRoute("/updates")({
   head: pageHead(
@@ -33,6 +32,12 @@ export const Route = createFileRoute("/updates")({
 const fmt = (t: number) =>
   t ? new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "–";
 
+const repositoryUrl = (value: string) => {
+  const trimmed = value.trim().replace(/\/$/, "");
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://github.com/${trimmed.replace(/^github\.com\//i, "").replace(/\.git$/i, "")}`;
+};
+
 function UpdatesPage() {
   const u = useUpdateCheck();
   const sim = useSim();
@@ -42,6 +47,7 @@ function UpdatesPage() {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [updateMessage, setUpdateMessage] = useState("");
   const updateError = u.isError || !!u.statusError;
+  const [repositoryDraft, setRepositoryDraft] = useState(settings.updateRepositoryUrl);
 
   const downloadAndInstall = async () => {
     const isDesktop =
@@ -120,14 +126,36 @@ function UpdatesPage() {
             </p>
           </div>
           <Button variant="panel" size="touch" asChild>
-            <a href={UPDATE_CONFIG.repositoryUrl} target="_blank" rel="noreferrer">
+            <a href={repositoryUrl(settings.updateRepositoryUrl)} target="_blank" rel="noreferrer">
               <ExternalLink className="size-4" aria-hidden="true" />
               Repository öffnen
             </a>
           </Button>
         </div>
-        <div className="mt-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 font-mono text-xs break-all">
-          {UPDATE_CONFIG.repositoryUrl}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            className="h-12 min-w-64 flex-1 rounded-lg border border-input bg-secondary px-3 font-mono text-sm"
+            value={repositoryDraft}
+            onChange={(event) => setRepositoryDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                update({ updateRepositoryUrl: repositoryDraft.trim() });
+                void u.refetch();
+              }
+            }}
+            aria-label="GitHub-Repository"
+            placeholder="Besitzer/Repository oder https://github.com/Besitzer/Repository"
+          />
+          <Button
+            variant="panel"
+            size="touch"
+            onClick={() => {
+              update({ updateRepositoryUrl: repositoryDraft.trim() });
+              void u.refetch();
+            }}
+          >
+            Repository speichern
+          </Button>
         </div>
       </section>
 

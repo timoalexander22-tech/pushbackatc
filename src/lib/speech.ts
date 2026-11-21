@@ -195,7 +195,18 @@ export function useAudioDevices() {
       return;
     }
     try {
-      const d = await navigator.mediaDevices.enumerateDevices();
+      let d = await navigator.mediaDevices.enumerateDevices();
+      const hasUnnamedInput = d.some((x) => x.kind === "audioinput" && x.deviceId && !x.label);
+      if (hasUnnamedInput) {
+        try {
+          const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          permissionStream.getTracks().forEach((track) => track.stop());
+          d = await navigator.mediaDevices.enumerateDevices();
+        } catch (permissionError) {
+          setError("Mikrofonzugriff verweigert. Bitte Gerätezugriff erlauben und erneut laden.");
+          return;
+        }
+      }
       const nextInputs = d
         .filter((x) => x.kind === "audioinput" && x.deviceId)
         .map((x) => describeMediaDevice(x, "microphone"));

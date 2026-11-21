@@ -150,12 +150,20 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     state,
     say,
     toggle: (item) => setState((s) => toggleGround(s, item)),
-    setDirection: (d) =>
+    setDirection: (d) => {
+      const current = stateRef.current;
+      if (current.phase === "pushing") {
+        if (liveRef.current) {
+          sim.send({ type: "cmd", cmd: "push_steer", direction: d });
+        }
+        return;
+      }
       setState((s) =>
-        ["pushing", "push_complete", "parked", "disconnecting", "complete"].includes(s.phase)
+        ["push_complete", "parked", "disconnecting", "complete"].includes(s.phase)
           ? s
           : { ...s, direction: d },
-      ),
+      );
+    },
     reset: () => {
       stopSpeech();
       setState(initialState(readSettings().defaultDirection));

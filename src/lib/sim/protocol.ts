@@ -1,7 +1,7 @@
 import type { PushDirection } from "../crew/engine";
 
 /** Must match `version` in companion/package.json. */
-export const COMPANION_LATEST = "1.0.0";
+export const COMPANION_LATEST = "1.0.1";
 export const COMPANION_DOWNLOAD =
   "https://github.com/timoalexander22-tech/pushbackatc/archive/refs/heads/main.zip";
 export const DEFAULT_LOCAL_URL = "ws://localhost:8787";
@@ -29,6 +29,7 @@ export type AppCommand =
       facing: string | null;
       seconds: number;
     }
+  | { type: "cmd"; cmd: "push_steer"; direction: PushDirection }
   | { type: "cmd"; cmd: "push_stop" };
 
 export const relayChannel = (code: string) => `vgc-sim-${code.trim().toUpperCase()}`;

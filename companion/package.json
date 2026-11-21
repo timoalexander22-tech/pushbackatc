@@ -1,6 +1,6 @@
 {
   "name": "virtual-ground-crew-companion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Windows bridge between MSFS 2020 (SimConnect) and the Virtual Ground Crew app.",
   "type": "module",

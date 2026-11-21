@@ -151,6 +151,21 @@ function stopPush(notify) {
   console.log("Pushback beendet");
 }
 
+function steerPush(direction) {
+  if (!push) return;
+  let target = null;
+  if (direction === "left") target = norm(state.heading + 90);
+  else if (direction === "right") target = norm(state.heading - 90);
+  push.target = target;
+  push.span = target === null ? 0 : Math.abs(diff(target, state.heading));
+  push.settled = null;
+  console.log(
+    direction === "straight"
+      ? "Pushback gerade"
+      : `Pushback-Steuerung ${direction === "left" ? "links" : "rechts"}`,
+  );
+}
+
 setInterval(() => {
   if (!push) return;
   const elapsed = (Date.now() - push.t0) / 1000;
@@ -172,6 +187,7 @@ setInterval(() => {
 function handleCommand(c) {
   if (c?.type !== "cmd") return;
   if (c.cmd === "push_start") startPush(c);
+  else if (c.cmd === "push_steer") steerPush(c.direction);
   else if (c.cmd === "push_stop") stopPush(false);
 }
 

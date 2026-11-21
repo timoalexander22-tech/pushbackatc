@@ -17,6 +17,7 @@ Verbindet MSFS 2020 (SimConnect) mit der Virtual Ground Crew App auf iPad oder P
 - Parkbremse lösen/setzen → Crew startet bzw. beendet den Pushback.
 - Triebwerk 1/2 läuft → wird im Status angezeigt.
 - Pushback: Der Schlepper fährt im Simulator gerade, Heck links/rechts oder bis zur angesagten Kompassrichtung.
+- Während des Pushbacks können die Pfeilsteuerungen in der App die MSFS-Fahrtrichtung live ändern.
 
 ## Optionale `config.json`
 

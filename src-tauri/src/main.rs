@@ -329,6 +329,101 @@ fn backup_app_config(app: tauri::AppHandle, browser_config: String) -> Result<St
     Ok(backup_dir.to_string_lossy().into_owned())
 }
 
+fn normalize_github_repository(repository: &str) -> Result<String, String> {
+    let trimmed = repository.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err("GitHub-Repository darf nicht leer sein.".to_string());
+    }
+    let candidate = if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+        reqwest::Url::parse(trimmed)
+            .map_err(|_| "Ungültige GitHub-Repository-Adresse.".to_string())?
+            .host_str()
+            .filter(|host| *host == "github.com")
+            .map(|_| ())
+            .ok_or_else(|| "Nur GitHub-Repositories werden unterstützt.".to_string())?;
+        let url = reqwest::Url::parse(trimmed).unwrap();
+        url.path()
+            .trim_matches('/')
+            .trim_end_matches(".git")
+            .to_string()
+    } else {
+        trimmed
+            .strip_prefix("github.com/")
+            .unwrap_or(trimmed)
+            .trim_end_matches(".git")
+            .to_string()
+    };
+    let parts: Vec<&str> = candidate.split('/').filter(|part| !part.is_empty()).collect();
+    if parts.len() != 2
+        || parts.iter().any(|part| part.chars().any(|ch| ch.is_whitespace()))
+    {
+        return Err("Repository-Format: Besitzer/Repository oder vollständige GitHub-URL.".to_string());
+    }
+    Ok(format!("{}/{}", parts[0], parts[1]))
+}
+
+#[tauri::command]
+async fn check_latest_release(repository: String) -> Result<serde_json::Value, String> {
+    let repository = normalize_github_repository(&repository)?;
+    let response = reqwest::Client::new()
+        .get(format!("https://api.github.com/repos/{repository}/releases/latest"))
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .header(reqwest::header::USER_AGENT, "Virtual-Ground-Crew")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|error| format!("GitHub-Verbindung fehlgeschlagen: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "GitHub-API HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+    let release: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("GitHub-Antwort konnte nicht gelesen werden: {error}"))?;
+    let tag = release
+        .get("tag_name")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let version = tag.trim().trim_start_matches('v').split('-').next().unwrap_or("");
+    if release
+        .get("draft")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        return Ok(serde_json::json!({ "release": null, "configured": true }));
+    }
+    let assets = release
+        .get("assets")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|asset| {
+                    Some(serde_json::json!({
+                        "name": asset.get("name")?.as_str()?,
+                        "browser_download_url": asset.get("browser_download_url")?.as_str()?,
+                        "size": asset.get("size").and_then(|value| value.as_u64()).unwrap_or(0),
+                    }))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(serde_json::json!({
+        "release": {
+            "version": version,
+            "name": release.get("name").and_then(|value| value.as_str()).unwrap_or(tag),
+            "notes": release.get("body").and_then(|value| value.as_str()).unwrap_or("Keine Änderungsbeschreibung veröffentlicht."),
+            "pageUrl": release.get("html_url").and_then(|value| value.as_str()).unwrap_or(""),
+            "publishedAt": release.get("published_at"),
+            "assets": assets,
+        },
+        "configured": true
+    }))
+}
+
 fn copy_directory(source: &Path, destination: &Path) -> Result<(), String> {
     fs::create_dir_all(destination).map_err(|e| e.to_string())?;
     for entry in fs::read_dir(source).map_err(|e| e.to_string())? {
@@ -463,6 +558,7 @@ fn main() {
             open_plugin_folder,
             write_app_log,
             backup_app_config,
+            check_latest_release,
             download_installer,
             run_installer
         ))

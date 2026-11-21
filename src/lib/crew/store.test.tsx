@@ -24,7 +24,7 @@ vi.mock("../settings", () => ({
 }));
 
 function TestCrew() {
-  const { say, state } = useCrew();
+  const { say, setDirection, state } = useCrew();
   return (
     <>
       <button onClick={() => say("Ground, go ahead.")}>Prepare</button>
@@ -33,6 +33,7 @@ function TestCrew() {
       >
         Start pushback
       </button>
+      <button onClick={() => setDirection("left")}>Steer left</button>
       <output>{state.phase}</output>
     </>
   );
@@ -86,6 +87,29 @@ describe("crew simulator pushback integration", () => {
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ type: "cmd", cmd: "push_start", facing: "north" }),
     );
+  });
+
+  it("sends live steering commands while a simulator push is in progress", () => {
+    const send = vi.fn();
+    simMock.current = {
+      status: "live",
+      send,
+      onPushDone: vi.fn(() => () => {}),
+    };
+    render(
+      <CrewProvider>
+        <TestCrew />
+      </CrewProvider>,
+    );
+    fireEvent.click(screen.getByText("Prepare"));
+    fireEvent.click(screen.getByText("Start pushback"));
+    fireEvent.click(screen.getByText("Steer left"));
+
+    expect(send).toHaveBeenCalledWith({
+      type: "cmd",
+      cmd: "push_steer",
+      direction: "left",
+    });
   });
 
   it("falls back to the timed push when the companion disconnects", () => {
