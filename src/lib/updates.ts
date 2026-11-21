@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "./settings";
-import { APP_BUILD } from "./version";
+import { APP_VERSION } from "./version";
 import { getLatestRelease } from "./version.functions";
+import { isNewerVersion } from "./updates-core";
 
 export function useUpdateCheck() {
   const { settings } = useSettings();
@@ -13,8 +14,22 @@ export function useUpdateCheck() {
     retry: 1,
     staleTime: 60 * 1000,
   });
-  const available = !!q.data && q.data.build !== APP_BUILD;
-  return { ...q, available, latest: q.data };
+  const available =
+    !!q.data?.release &&
+    q.data.release.version !== undefined &&
+    (() => {
+      try {
+        return isNewerVersion(APP_VERSION, q.data.release.version);
+      } catch {
+        return false;
+      }
+    })();
+  const statusError =
+    q.data?.error ??
+    (q.data && q.data.configured === false
+      ? "GitHub-Repository ist nicht konfiguriert."
+      : null);
+  return { ...q, available, latest: q.data?.release ?? null, statusError };
 }
 
 /** Load the newest deployment, dropping any cached assets first. */

@@ -6,16 +6,21 @@ import {
   MonitorCog,
   RefreshCw,
   TriangleAlert,
+  ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { pageHead } from "@/lib/meta";
 import { useSettings } from "@/lib/settings";
 import { COMPANION_DOWNLOAD, COMPANION_LATEST } from "@/lib/sim/protocol";
 import { useSim } from "@/lib/sim/store";
-import { applyUpdate, useUpdateCheck } from "@/lib/updates";
+import { useUpdateCheck } from "@/lib/updates";
 import { APP_VERSION, CHANGELOG } from "@/lib/version";
+import { writeAppLog } from "@/lib/log";
+import { UPDATE_CONFIG } from "@/lib/update-config";
 
 export const Route = createFileRoute("/updates")({
   head: pageHead(
@@ -34,6 +39,70 @@ function UpdatesPage() {
   const { settings, update } = useSettings();
   const [updating, setUpdating] = useState(false);
   const companionOld = sim.companionVersion !== null && sim.companionVersion !== COMPANION_LATEST;
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [updateMessage, setUpdateMessage] = useState("");
+  const updateError = u.isError || !!u.statusError;
+
+  const downloadAndInstall = async () => {
+    const isDesktop =
+      "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
+    if (!isDesktop) {
+      if (u.latest?.pageUrl) window.open(u.latest.pageUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const asset =
+      u.latest?.assets?.find((item) => /\.exe$/i.test(item.name)) ??
+      u.latest?.assets?.find((item) => /\.msi$/i.test(item.name));
+    if (!asset) {
+      if (u.latest?.pageUrl) window.open(u.latest.pageUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setUpdating(true);
+    setUpdateMessage("Update wird heruntergeladen…");
+    setDownloadProgress(0);
+    try {
+      if ("__TAURI_INTERNALS__" in window || "__TAURI__" in window) {
+        const browserConfig = JSON.stringify({
+          settings: localStorage.getItem("vgc.settings.v1"),
+          enabledPlugins: localStorage.getItem("vgc.enabledPlugins.v1"),
+        });
+        const backup = await invoke<string>("backup_app_config", { browserConfig });
+        setUpdateMessage(`Backup erstellt: ${backup}`);
+      }
+      const unlisten = await listen<{ percent: number | null }>(
+        "update-download-progress",
+        (event) => setDownloadProgress(event.payload.percent ?? null),
+      );
+      const checksumAsset = u.latest.assets.find((item) => /\.sha256$/i.test(item.name));
+      let sha256: string | undefined;
+      if (checksumAsset) {
+        try {
+          const checksumText = await (await fetch(checksumAsset.browser_download_url)).text();
+          sha256 = checksumText.match(/[a-fA-F0-9]{64}/)?.[0];
+        } catch {
+          sha256 = undefined;
+        }
+      }
+      const path = await invoke<string>("download_installer", {
+        url: asset.browser_download_url,
+        sha256,
+      });
+      unlisten();
+      setUpdateMessage(
+        sha256
+          ? "SHA-256-Prüfsumme erfolgreich geprüft. Installer wird gestartet."
+          : "Download abgeschlossen. Installer wird gestartet.",
+      );
+      await invoke("run_installer", { path });
+      await writeAppLog("info", `Update ${u.latest.version} heruntergeladen und Installer gestartet`);
+    } catch (error) {
+      setUpdateMessage(error instanceof Error ? error.message : "Das Update konnte nicht installiert werden.");
+      await writeAppLog("error", `Update fehlgeschlagen: ${error}`);
+    } finally {
+      setUpdating(false);
+      setDownloadProgress(null);
+    }
+  };
 
   return (
     <>
@@ -41,6 +110,26 @@ function UpdatesPage() {
         title="Updates"
         subtitle="Die App prüft automatisch auf neue Versionen. Updates werden nie während eines Pushbacks erzwungen."
       />
+
+      <section className="panel mb-5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="font-display text-lg uppercase">GitHub-Releasequelle</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Stable-Releases · Kein Zugangstoken erforderlich
+            </p>
+          </div>
+          <Button variant="panel" size="touch" asChild>
+            <a href={UPDATE_CONFIG.repositoryUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="size-4" aria-hidden="true" />
+              Repository öffnen
+            </a>
+          </Button>
+        </div>
+        <div className="mt-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 font-mono text-xs break-all">
+          {UPDATE_CONFIG.repositoryUrl}
+        </div>
+      </section>
 
       <section className="panel p-5" aria-live="polite">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -50,7 +139,7 @@ function UpdatesPage() {
                 className="mt-1 size-6 animate-spin text-muted-foreground"
                 aria-hidden="true"
               />
-            ) : u.isError ? (
+            ) : updateError ? (
               <TriangleAlert className="mt-1 size-6 text-destructive" aria-hidden="true" />
             ) : u.available ? (
               <Download className="mt-1 size-6 text-primary" aria-hidden="true" />
@@ -61,7 +150,7 @@ function UpdatesPage() {
               <div className="font-display text-2xl uppercase">
                 {u.isFetching
                   ? "Suche nach Updates…"
-                  : u.isError
+                  : updateError
                     ? "Prüfung fehlgeschlagen"
                     : u.available
                       ? `Version ${u.latest?.version} verfügbar`
@@ -70,9 +159,10 @@ function UpdatesPage() {
               <div className="text-sm text-muted-foreground">
                 Installiert: Version {APP_VERSION} · Zuletzt geprüft: {fmt(u.dataUpdatedAt)}
               </div>
-              {u.isError && (
+              {updateError && (
                 <p className="mt-1 text-sm text-destructive">
-                  Keine Verbindung zum Server. Internet prüfen und erneut versuchen.
+                  {u.statusError ||
+                    "Keine Verbindung zum Server. Internet prüfen und erneut versuchen."}
                 </p>
               )}
             </div>
@@ -91,10 +181,7 @@ function UpdatesPage() {
                 variant="cockpit"
                 size="touch"
                 disabled={updating}
-                onClick={() => {
-                  setUpdating(true);
-                  void applyUpdate();
-                }}
+                onClick={() => void downloadAndInstall()}
               >
                 {updating ? (
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -115,6 +202,36 @@ function UpdatesPage() {
           />
           Automatisch alle 10 Minuten und beim Öffnen prüfen
         </label>
+        {(downloadProgress !== null || updateMessage) && (
+          <div className="mt-4 border-t border-border pt-4">
+            {downloadProgress !== null && (
+              <div
+                role="progressbar"
+                aria-label="Update-Fortschritt"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={downloadProgress}
+                className="h-3 overflow-hidden rounded-full bg-muted"
+              >
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${downloadProgress}%` }}
+                />
+              </div>
+            )}
+            {updateMessage && <p className="mt-2 text-sm text-muted-foreground">{updateMessage}</p>}
+          </div>
+        )}
+      </section>
+
+      <section className="panel mt-5 p-5">
+        <h2 className="font-display text-lg uppercase">So wird aktualisiert</h2>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>Neue Programmdateien werden durch den Windows-Installer ergänzt oder ersetzt.</li>
+          <li>Veraltete Programmdateien werden nur durch den neuen Installer entfernt.</li>
+          <li>Benutzerordner, Einstellungen, Plugins und Community-Dateien bleiben erhalten.</li>
+          <li>Vor dem Start wird eine lokale Sicherung der Einstellungen und Plugins erstellt.</li>
+        </ul>
       </section>
 
       <section className="panel mt-5 p-5">
@@ -145,6 +262,14 @@ function UpdatesPage() {
 
       <section className="panel mt-5 p-5">
         <h2 className="font-display text-xl uppercase">Was ist neu</h2>
+        {u.available && u.latest && (
+          <div className="mb-5 rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <div className="font-display text-lg text-primary">Version {u.latest.version}</div>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+              {u.latest.notes}
+            </p>
+          </div>
+        )}
         <ol className="mt-3 flex flex-col gap-5">
           {CHANGELOG.map((c) => (
             <li key={c.version}>

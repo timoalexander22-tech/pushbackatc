@@ -5,6 +5,7 @@ import { crewSpeech } from "./tts/tts.functions";
 import { pickVoice } from "./tts/voice";
 import { blobToBase64, encodeWav, recordWav, type Recording } from "./audio/recorder";
 import { transcribeRadio } from "./audio/stt.functions";
+import { describeMediaDevice, resolveAvailableDevice, type AudioDevice } from "./audio/devices";
 
 let current: HTMLAudioElement | null = null;
 let seq = 0;
@@ -184,8 +185,8 @@ export function useRecognition(
 }
 
 export function useAudioDevices() {
-  const [inputs, setInputs] = useState<MediaDeviceInfo[]>([]);
-  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [inputs, setInputs] = useState<AudioDevice[]>([]);
+  const [outputs, setOutputs] = useState<AudioDevice[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [canRouteOutput, setCanRouteOutput] = useState(false);
   const load = useCallback(async () => {
@@ -195,8 +196,31 @@ export function useAudioDevices() {
     }
     try {
       const d = await navigator.mediaDevices.enumerateDevices();
-      setInputs(d.filter((x) => x.kind === "audioinput" && x.deviceId));
-      setOutputs(d.filter((x) => x.kind === "audiooutput" && x.deviceId));
+      const nextInputs = d
+        .filter((x) => x.kind === "audioinput" && x.deviceId)
+        .map((x) => describeMediaDevice(x, "microphone"));
+      const nextOutputs = d
+        .filter((x) => x.kind === "audiooutput" && x.deviceId)
+        .map((x) => describeMediaDevice(x, "speaker"));
+      setInputs(nextInputs);
+      setOutputs(nextOutputs);
+      const settings = readSettings();
+      const inputFallback = resolveAvailableDevice(settings.inputDeviceId, nextInputs);
+      const outputFallback = resolveAvailableDevice(settings.outputDeviceId, nextOutputs);
+      if (inputFallback !== settings.inputDeviceId || outputFallback !== settings.outputDeviceId) {
+        try {
+          const raw = JSON.parse(localStorage.getItem("vgc.settings.v1") || "{}");
+          localStorage.setItem(
+            "vgc.settings.v1",
+            JSON.stringify({
+              ...raw,
+              inputDeviceId: inputFallback,
+              outputDeviceId: outputFallback,
+            }),
+          );
+          window.dispatchEvent(new Event("vgc-settings"));
+        } catch {}
+      }
       setError(null);
     } catch {
       setError("Audio-Geräte konnten nicht geladen werden. Bitte Berechtigungen prüfen.");

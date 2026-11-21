@@ -43,6 +43,21 @@ The MSI and NSIS installers are written under `src-tauri/target/release/bundle/`
 No Node.js or Python installation is needed on users' PCs after installing the app.
 The batch file keeps its window open and displays build errors.
 
+## Community-Plugins
+
+Community-Plugins werden unter `%APPDATA%\\pushbackatc\\community` gesucht.
+Jedes Plugin besitzt einen Unterordner mit einer `plugin.json`. Eine gültige
+Manifestdatei enthält `id`, `name`, `version`, `author`, `description`,
+`entryPoint` und `apiVersion: "1.0"`. Ungültige oder inkompatible Plugins
+werden protokolliert und deaktiviert. Die Plugin-Verwaltung unter
+**Plugins** zeigt gefundene Erweiterungen und ermöglicht Aktivieren,
+Deaktivieren sowie das Öffnen des Ordners.
+
+Plugin-Code läuft bewusst nicht mit unbeschränktem Zugriff auf interne
+Programmteile. Die laufende Implementierung validiert Manifeste und verwaltet
+den kontrollierten Aktivierungszustand; eine spätere Sandbox kann Entry-Point-
+Module über die dokumentierte API laden.
+
 ## Speech providers (local development)
 
 Speech-to-text and text-to-speech run on local server processes. Neither service sends audio or text to a cloud provider, and no API key is needed. After the app dependencies, Python packages, and speech models have been installed/downloaded once, the training and speech features work without an internet connection. The sidecar start scripts skip package installation when their local dependencies are already present.

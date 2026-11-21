@@ -6,6 +6,7 @@ import {
   GraduationCap,
   Headset,
   MoveDown,
+  Puzzle,
   Settings,
   Truck,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const NAV = [
   { to: "/training", label: "Training", icon: GraduationCap },
   { to: "/settings", label: "Einstellungen", icon: Settings },
   { to: "/updates", label: "Updates", icon: Download },
+  { to: "/plugins", label: "Plugins", icon: Puzzle },
 ] as const;
 
 function UpdateDot({ show }: { show: boolean }) {

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CommsRouteImport } from './routes/comms'
 import { Route as GroundOpsRouteImport } from './routes/ground-ops'
+import { Route as PluginsRouteImport } from './routes/plugins'
 import { Route as PushbackRouteImport } from './routes/pushback'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TrainingRouteImport } from './routes/training'
@@ -31,6 +32,11 @@ const CommsRoute = CommsRouteImport.update({
 const GroundOpsRoute = GroundOpsRouteImport.update({
   id: '/ground-ops',
   path: '/ground-ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PluginsRoute = PluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PushbackRoute = PushbackRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/comms': typeof CommsRoute
   '/ground-ops': typeof GroundOpsRoute
+  '/plugins': typeof PluginsRoute
   '/pushback': typeof PushbackRoute
   '/settings': typeof SettingsRoute
   '/training': typeof TrainingRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/comms': typeof CommsRoute
   '/ground-ops': typeof GroundOpsRoute
+  '/plugins': typeof PluginsRoute
   '/pushback': typeof PushbackRoute
   '/settings': typeof SettingsRoute
   '/training': typeof TrainingRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/comms': typeof CommsRoute
   '/ground-ops': typeof GroundOpsRoute
+  '/plugins': typeof PluginsRoute
   '/pushback': typeof PushbackRoute
   '/settings': typeof SettingsRoute
   '/training': typeof TrainingRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/comms'
     | '/ground-ops'
+    | '/plugins'
     | '/pushback'
     | '/settings'
     | '/training'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/comms'
     | '/ground-ops'
+    | '/plugins'
     | '/pushback'
     | '/settings'
     | '/training'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/comms'
     | '/ground-ops'
+    | '/plugins'
     | '/pushback'
     | '/settings'
     | '/training'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CommsRoute: typeof CommsRoute
   GroundOpsRoute: typeof GroundOpsRoute
+  PluginsRoute: typeof PluginsRoute
   PushbackRoute: typeof PushbackRoute
   SettingsRoute: typeof SettingsRoute
   TrainingRoute: typeof TrainingRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/ground-ops'
       fullPath: '/ground-ops'
       preLoaderRoute: typeof GroundOpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plugins': {
+      id: '/plugins'
+      path: '/plugins'
+      fullPath: '/plugins'
+      preLoaderRoute: typeof PluginsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pushback': {
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CommsRoute: CommsRoute,
   GroundOpsRoute: GroundOpsRoute,
+  PluginsRoute: PluginsRoute,
   PushbackRoute: PushbackRoute,
   SettingsRoute: SettingsRoute,
   TrainingRoute: TrainingRoute,

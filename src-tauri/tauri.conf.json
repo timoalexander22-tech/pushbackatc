@@ -24,6 +24,7 @@
       "../companion/": "companion/",
       "../local-stt/dist/local-stt/": "speech/stt/",
       "../local-tts/dist/local-tts/": "speech/tts/",
+      "../community/": "community/",
       "resources/runtime/node.exe": "runtime/node.exe"
     },
     "windows": {

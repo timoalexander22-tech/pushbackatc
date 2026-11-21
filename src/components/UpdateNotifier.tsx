@@ -7,8 +7,8 @@ export function UpdateNotifier() {
   const { available, latest } = useUpdateCheck();
   const shown = useRef<string | null>(null);
   useEffect(() => {
-    if (!available || !latest || shown.current === latest.build) return;
-    shown.current = latest.build;
+    if (!available || !latest || shown.current === latest.version) return;
+    shown.current = latest.version;
     toast("Update verfügbar", {
       description: `Version ${latest.version} ist bereit.`,
       duration: 15000,

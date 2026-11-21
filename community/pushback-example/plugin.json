@@ -1,0 +1,9 @@
+{
+  "id": "community.pushback-example",
+  "name": "Pushback Beispiel",
+  "version": "1.0.0",
+  "author": "PushbackATC",
+  "description": "Referenzplugin für Pushback-Ereignisse und eigene ATC-Steuerelemente.",
+  "entryPoint": "plugin.js",
+  "apiVersion": "1.0"
+}
