@@ -23,7 +23,9 @@ if [ ! -x .venv/bin/python ] || ! .venv/bin/python -m pip --version >/dev/null 2
 fi
 
 VOICE="${VGC_PIPER_VOICE:-en_US-lessac-medium}"
-.venv/bin/python -m pip install -r requirements.txt
+if ! .venv/bin/python -c "import piper.http_server" >/dev/null 2>&1; then
+  .venv/bin/python -m pip install -r requirements.txt
+fi
 
 if [ ! -f "voices/${VOICE}.onnx" ] || [ ! -f "voices/${VOICE}.onnx.json" ]; then
   .venv/bin/python -m piper.download_voices "$VOICE" --data-dir voices

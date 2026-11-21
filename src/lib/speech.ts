@@ -21,8 +21,7 @@ export function speak(text: string) {
   const s = readSettings();
   if (!s.speak) return;
   const model = s.ttsModel.trim();
-  if (model) return void speakGenerated(text, s.airport, model, true);
-  if (s.onlineVoice) return void speakGenerated(text, s.airport, "", false);
+  if (model) return void speakGenerated(text, s.airport, model);
   if (s.outputDeviceId) {
     toast.error(
       "Die Gerätestimme nutzt die Windows-Standardausgabe. Für den gewählten Lautsprecher bitte ein TTS-Modell konfigurieren.",
@@ -32,12 +31,12 @@ export function speak(text: string) {
   speakDevice(text);
 }
 
-async function speakGenerated(text: string, airport: string, model: string, localOnly: boolean) {
+async function speakGenerated(text: string, airport: string, model: string) {
   const my = ++seq;
   current?.pause();
   const { voice = "Charon", accent } = pickVoice(airport);
   try {
-    const r = await crewSpeech({ data: { text, voice, accent, model, localOnly } });
+    const r = await crewSpeech({ data: { text, voice, accent, model } });
     if (my !== seq) return;
     if ("error" in r) throw new Error(r.error);
     const a = new Audio(`data:${r.type};base64,${r.audio}`);
@@ -52,9 +51,7 @@ async function speakGenerated(text: string, airport: string, model: string, loca
     await a.play();
   } catch (e) {
     if (my !== seq) return;
-    toast.error(
-      `${localOnly ? "Lokale" : "Online-"}Crew-Stimme fehlgeschlagen: ${e instanceof Error ? e.message : "Fehler"}`,
-    );
+    toast.error(`Lokale Crew-Stimme fehlgeschlagen: ${e instanceof Error ? e.message : "Fehler"}`);
   }
 }
 

@@ -54,7 +54,6 @@ it("uses the TTS model selected in settings", async () => {
     "vgc.settings.v1",
     JSON.stringify({
       speak: true,
-      onlineVoice: true,
       ttsModel: "local-voice",
       outputDeviceId: "headset-output",
     }),
@@ -86,7 +85,6 @@ it("uses the TTS model selected in settings", async () => {
       data: expect.objectContaining({
         text: "Ground to cockpit.",
         model: "local-voice",
-        localOnly: true,
       }),
     }),
   );

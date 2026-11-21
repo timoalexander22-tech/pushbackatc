@@ -253,12 +253,6 @@ function SettingsPage() {
           <Toggle on={s.speak} onChange={(v) => update({ speak: v })} />
         </Row>
         <Row
-          label="Online-TTS (ohne Modell)"
-          hint="Nur aktiv, wenn kein TTS-Modell eingetragen ist. Ein Modell nutzt stattdessen den kompatiblen TTS-Dienst."
-        >
-          <Toggle on={s.onlineVoice} onChange={(v) => update({ onlineVoice: v })} />
-        </Row>
-        <Row
           label="Flughafen (ICAO)"
           hint={`Heutige Crew: ${pickVoice(s.airport).voice}, ${pickVoice(s.airport).accent} accent – wechselt je Flughafen und Tag`}
         >

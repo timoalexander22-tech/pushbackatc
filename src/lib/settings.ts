@@ -11,7 +11,6 @@ export type Settings = {
   showSuggestions: boolean;
   callsign: string;
   airport: string;
-  onlineVoice: boolean;
   sttModel: string;
   ttsModel: string;
   pttKeys: [string, string];
@@ -35,7 +34,6 @@ export const DEFAULT_SETTINGS: Settings = {
   showSuggestions: true,
   callsign: "",
   airport: "EDDF",
-  onlineVoice: false,
   sttModel: "",
   ttsModel: "",
   pttKeys: ["Space", "ControlRight"],
