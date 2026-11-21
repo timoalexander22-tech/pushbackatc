@@ -3,7 +3,7 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 import { parseSimbriefFlight, simbriefIdentity, type SimbriefFlight } from "./simbrief";
 
 export const fetchSimbrief = createServerFn({ method: "POST" })
-  .inputValidator((input: { kind: "userid" | "username"; value: string }) => simbriefIdentity.parse(input))
+  .validator((input: { kind: "userid" | "username"; value: string }) => simbriefIdentity.parse(input))
   .handler(async ({ data }): Promise<{ flight: SimbriefFlight; error?: never } | { error: string; flight?: never }> => {
     setResponseHeader("Cache-Control", "no-store");
     const url = new URL("https://www.simbrief.com/api/xml.fetcher.php");

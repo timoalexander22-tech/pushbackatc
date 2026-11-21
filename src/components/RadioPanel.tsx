@@ -9,7 +9,9 @@ import { keyLabel, usePushToTalk } from "@/lib/ptt";
 
 export function RadioLog({ log, empty }: { log: Message[]; empty?: string | undefined }) {
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), [log.length]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [log.length]);
   return (
     <div className="panel flex h-[46dvh] min-h-72 flex-col gap-3 overflow-y-auto p-4" aria-live="polite">
       {log.length === 0 && <p className="m-auto max-w-sm text-center text-muted-foreground">{empty ?? "Noch kein Funkverkehr."}</p>}

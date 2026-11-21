@@ -12,6 +12,8 @@ export type Settings = {
   callsign: string;
   airport: string;
   onlineVoice: boolean;
+  sttModel: string;
+  ttsModel: string;
   pttKeys: [string, string];
   simbriefKind: "userid" | "username";
   simbriefId: string;
@@ -33,7 +35,9 @@ export const DEFAULT_SETTINGS: Settings = {
   showSuggestions: true,
   callsign: "",
   airport: "EDDF",
-  onlineVoice: true,
+  onlineVoice: false,
+  sttModel: "",
+  ttsModel: "",
   pttKeys: ["Space", "ControlRight"],
   simbriefKind: "userid",
   simbriefId: "",

@@ -61,6 +61,43 @@ function SettingsPage() {
   const dev = useAudioDevices();
   const [binding, setBinding] = useState<number | null>(null);
   const [bindingError, setBindingError] = useState("");
+  const [audioTesting, setAudioTesting] = useState<"input" | "output" | null>(null);
+  const [audioMessage, setAudioMessage] = useState("");
+  const testMicrophone = async () => {
+    setAudioTesting("input");
+    setAudioMessage("");
+    try {
+      const level = await dev.testInput(s.inputDeviceId);
+      await dev.load();
+      setAudioMessage(
+        level > 0.01
+          ? "Mikrofon funktioniert – Sprachsignal erkannt."
+          : "Mikrofon verbunden, aber kein Sprachsignal erkannt. Bitte sprechen und Eingangspegel prüfen.",
+      );
+    } catch (e) {
+      setAudioMessage(
+        e instanceof DOMException && e.name === "NotAllowedError"
+          ? "Mikrofon-Zugriff verweigert."
+          : e instanceof DOMException && ["NotFoundError", "OverconstrainedError"].includes(e.name)
+            ? "Das ausgewählte Mikrofon ist nicht verfügbar. Bitte Geräte neu laden oder ein anderes wählen."
+            : "Mikrofon-Test fehlgeschlagen. Bitte Gerät und Berechtigungen prüfen.",
+      );
+    } finally {
+      setAudioTesting(null);
+    }
+  };
+  const testSpeaker = async () => {
+    setAudioTesting("output");
+    setAudioMessage("");
+    try {
+      await dev.testOutput(s.outputDeviceId);
+      setAudioMessage("Testton abgespielt.");
+    } catch (e) {
+      setAudioMessage(e instanceof Error ? e.message : "Lautsprecher-Test fehlgeschlagen.");
+    } finally {
+      setAudioTesting(null);
+    }
+  };
   return (
     <>
       <PageHeader
@@ -117,7 +154,10 @@ function SettingsPage() {
             {bindingError}
           </p>
         )}
-        <Row label="Mikrofon (Eingang)" hint="Gerätenamen erscheinen nach Freigabe des Mikrofons.">
+        <Row
+          label="Mikrofon (Eingang)"
+          hint="Sprich während des Tests; Geräte erscheinen nach Mikrofonfreigabe."
+        >
           <div className="flex flex-wrap gap-2">
             <select
               className={sel + " max-w-64"}
@@ -134,19 +174,49 @@ function SettingsPage() {
             <Button
               variant="panel"
               size="touch"
+              disabled={audioTesting !== null}
               onClick={() =>
-                void dev.unlock().catch(() => setBindingError("Mikrofon-Zugriff verweigert."))
+                void dev.unlock().catch(() => setAudioMessage("Mikrofon-Zugriff verweigert."))
               }
             >
               Geräte laden
             </Button>
+            <Button
+              variant="panel"
+              size="touch"
+              disabled={audioTesting !== null}
+              onClick={() => void testMicrophone()}
+            >
+              {audioTesting === "input" ? "Teste Mikrofon…" : "Mikrofon testen"}
+            </Button>
           </div>
+        </Row>
+        <Row label="STT-Modell" hint="Lokal: base.en oder small.en. Leer = Serverstandard.">
+          <input
+            className={sel + " w-72 font-mono"}
+            value={s.sttModel}
+            maxLength={128}
+            placeholder="base.en"
+            onChange={(e) => update({ sttModel: e.target.value })}
+          />
+        </Row>
+        <Row
+          label="TTS-Modell"
+          hint="Für Piper z. B. en_US-lessac-medium; wenn gesetzt, kein Online-TTS-Fallback."
+        >
+          <input
+            className={sel + " w-72 font-mono"}
+            value={s.ttsModel}
+            maxLength={128}
+            placeholder="en_US-lessac-medium"
+            onChange={(e) => update({ ttsModel: e.target.value })}
+          />
         </Row>
         <Row
           label="Lautsprecher (Ausgang)"
           hint={
             dev.canRouteOutput
-              ? "Gilt für die Online-Crewstimme."
+              ? "Für erzeugte Crew-Stimmen und den Testton. Die Windows-Gerätestimme nutzt den Systemstandard."
               : "Dieser Browser (z. B. Safari/iPad) erlaubt keine Auswahl – Ausgabe über Systemeinstellung."
           }
         >
@@ -164,12 +234,27 @@ function SettingsPage() {
             ))}
           </select>
         </Row>
+        <Row label="Lautsprecher testen">
+          <Button
+            variant="panel"
+            size="touch"
+            disabled={audioTesting !== null}
+            onClick={() => void testSpeaker()}
+          >
+            {audioTesting === "output" ? "Spiele Testton…" : "Testton abspielen"}
+          </Button>
+        </Row>
+        {(dev.error || audioMessage) && (
+          <p role="status" aria-live="polite" className="py-2 text-sm text-muted-foreground">
+            {dev.error ?? audioMessage}
+          </p>
+        )}
         <Row label="Sprachausgabe der Crew">
           <Toggle on={s.speak} onChange={(v) => update({ speak: v })} />
         </Row>
         <Row
-          label="Natürliche Online-Stimmen"
-          hint="Benötigt Internet. Bei Fehlern wird die Gerätestimme genutzt."
+          label="Online-TTS (ohne Modell)"
+          hint="Nur aktiv, wenn kein TTS-Modell eingetragen ist. Ein Modell nutzt stattdessen den kompatiblen TTS-Dienst."
         >
           <Toggle on={s.onlineVoice} onChange={(v) => update({ onlineVoice: v })} />
         </Row>
