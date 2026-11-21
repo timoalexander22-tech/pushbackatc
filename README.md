@@ -36,11 +36,12 @@ To build the unsigned Windows installers on Windows 10/11 x64, install Node.js 2
 Python 3.12, Rust stable, and the Microsoft C++ build tools, then run:
 
 ```powershell
-./scripts/build-windows-installer.ps1
+./build-windows-installer.bat
 ```
 
 The MSI and NSIS installers are written under `src-tauri/target/release/bundle/`.
 No Node.js or Python installation is needed on users' PCs after installing the app.
+The batch file keeps its window open and displays build errors.
 
 ## Speech providers (local development)
 

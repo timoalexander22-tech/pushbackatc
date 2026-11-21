@@ -46,6 +46,16 @@ try {
 
   Invoke-Checked "npm.cmd" @("run", "tauri:build")
 }
+catch {
+  Write-Host ""
+  Write-Host "Windows-Installer-Build fehlgeschlagen:" -ForegroundColor Red
+  Write-Host $_ -ForegroundColor Red
+  exit 1
+}
 finally {
   Pop-Location
 }
+
+Write-Host ""
+Write-Host "Windows-Installer erfolgreich erstellt:"
+Write-Host (Join-Path $root "src-tauri\target\release\bundle")
