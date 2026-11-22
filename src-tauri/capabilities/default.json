@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Default permissions for the Virtual Ground Crew window",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:4173", "http://localhost:5173"]
+  },
   "permissions": [
     "core:default",
     "allow-list-plugins",
