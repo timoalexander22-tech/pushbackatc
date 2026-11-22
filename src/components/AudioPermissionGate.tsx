@@ -11,13 +11,13 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
   const [ready, setReady] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState("");
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [desktop, setDesktop] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const isDesktop =
-      "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
+    const isDesktop = "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
     setDesktop(isDesktop);
     if (!isDesktop || sessionStorage.getItem(AUDIO_PERMISSION_KEY) === "1") {
       setReady(true);
@@ -29,6 +29,7 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
   const requestPermission = async () => {
     setRequesting(true);
     setError("");
+    setPermissionDenied(false);
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("Dieses Windows-Gerät unterstützt die Audiogerätefreigabe nicht.");
@@ -38,9 +39,16 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
       sessionStorage.setItem(AUDIO_PERMISSION_KEY, "1");
       setReady(true);
     } catch (permissionError) {
+      const errorName =
+        permissionError instanceof DOMException
+          ? permissionError.name
+          : permissionError instanceof Error
+            ? permissionError.name
+            : "";
+      setPermissionDenied(errorName === "NotAllowedError");
       setError(
-        permissionError instanceof DOMException && permissionError.name === "NotAllowedError"
-          ? "Der Mikrofonzugriff wurde verweigert. Prüfen Sie die Windows-Mikrofon-Datenschutzeinstellungen."
+        errorName === "NotAllowedError"
+          ? "Windows oder WebView2 hat den Mikrofonzugriff blockiert."
           : permissionError instanceof Error
             ? permissionError.message
             : "Der Audiogerätezugriff konnte nicht angefragt werden.",
@@ -85,7 +93,10 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
         </p>
         <div className="mt-4 flex items-start gap-2 rounded-xl border border-border bg-secondary p-3 text-sm">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-          <span>Die Aufnahme startet erst bei einer Sprachfunktion und wird nicht dauerhaft aufgezeichnet.</span>
+          <span>
+            Die Aufnahme startet erst bei einer Sprachfunktion und wird nicht dauerhaft
+            aufgezeichnet.
+          </span>
         </div>
         <p className="mt-3 text-sm text-muted-foreground">
           Bei Desktop-Apps wird die App möglicherweise nicht einzeln aufgeführt. Aktivieren Sie
@@ -93,9 +104,18 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
           <strong>Desktop-Apps den Zugriff auf das Mikrofon erlauben</strong>.
         </p>
         {error && (
-          <p role="alert" className="mt-4 text-sm text-destructive">
-            {error}
-          </p>
+          <div role="alert" className="mt-4 space-y-2 text-sm text-destructive">
+            <p>{error}</p>
+            {permissionDenied && (
+              <p className="text-muted-foreground">
+                Prüfen Sie in den Windows-Mikrofoneinstellungen den Gerätezugriff sowie den Zugriff
+                für Apps und Desktop-Apps. Beenden Sie die App danach vollständig und starten Sie
+                sie neu. Ist der Zugriff bereits aktiviert, testen Sie das Mikrofon in einer anderen
+                App; eine gespeicherte WebView2-Berechtigung oder eine Windows-Richtlinie kann die
+                Anfrage weiterhin blockieren.
+              </p>
+            )}
+          </div>
         )}
         {settingsError && (
           <p role="alert" className="mt-4 text-sm text-destructive">
