@@ -567,6 +567,25 @@ fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_microphone_settings() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer.exe")
+            .arg("ms-settings:privacy-microphone")
+            .spawn()
+            .map_err(|error| {
+                format!("Windows-Mikrofoneinstellungen konnten nicht geöffnet werden: {error}")
+            })?;
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Diese Funktion ist nur unter Windows verfügbar.".to_string())
+    }
+}
+
+#[tauri::command]
 async fn check_latest_release(
     repository: String,
     channel: Option<String>,
@@ -831,6 +850,7 @@ fn main() {
             write_app_log,
             backup_app_config,
             open_external_url,
+            open_microphone_settings,
             test_github_connection,
             check_latest_release,
             download_installer,

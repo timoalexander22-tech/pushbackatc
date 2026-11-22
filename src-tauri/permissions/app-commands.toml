@@ -24,6 +24,11 @@ description = "Allows opening validated HTTP and HTTPS URLs in the system browse
 commands.allow = ["open_external_url"]
 
 [[permission]]
+identifier = "allow-open-microphone-settings"
+description = "Allows opening the Windows microphone privacy settings."
+commands.allow = ["open_microphone_settings"]
+
+[[permission]]
 identifier = "allow-check-latest-release"
 description = "Allows checking the latest release for a GitHub repository."
 commands.allow = ["check_latest_release"]

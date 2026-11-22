@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Mic, ShieldCheck } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 
 const AUDIO_PERMISSION_KEY = "vgc.audioPermission.prompted";
@@ -10,12 +11,15 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
   const [ready, setReady] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [desktop, setDesktop] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const desktop =
+    const isDesktop =
       "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
-    if (!desktop || sessionStorage.getItem(AUDIO_PERMISSION_KEY) === "1") {
+    setDesktop(isDesktop);
+    if (!isDesktop || sessionStorage.getItem(AUDIO_PERMISSION_KEY) === "1") {
       setReady(true);
       return;
     }
@@ -36,13 +40,26 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
     } catch (permissionError) {
       setError(
         permissionError instanceof DOMException && permissionError.name === "NotAllowedError"
-          ? "Der Mikrofonzugriff wurde verweigert. Bitte in den Windows-Datenschutzeinstellungen erlauben."
+          ? "Der Mikrofonzugriff wurde verweigert. Prüfen Sie die Windows-Mikrofon-Datenschutzeinstellungen."
           : permissionError instanceof Error
             ? permissionError.message
             : "Der Audiogerätezugriff konnte nicht angefragt werden.",
       );
     } finally {
       setRequesting(false);
+    }
+  };
+
+  const openMicrophoneSettings = async () => {
+    setSettingsError("");
+    try {
+      await invoke("open_microphone_settings");
+    } catch (settingsOpenError) {
+      setSettingsError(
+        settingsOpenError instanceof Error
+          ? settingsOpenError.message
+          : "Die Windows-Mikrofoneinstellungen konnten nicht geöffnet werden.",
+      );
     }
   };
 
@@ -70,9 +87,19 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
           <span>Die Aufnahme startet erst bei einer Sprachfunktion und wird nicht dauerhaft aufgezeichnet.</span>
         </div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Bei Desktop-Apps wird die App möglicherweise nicht einzeln aufgeführt. Aktivieren Sie
+          unter <strong>Datenschutz &amp; Sicherheit → Mikrofon</strong> den Mikrofonzugriff und{" "}
+          <strong>Desktop-Apps den Zugriff auf das Mikrofon erlauben</strong>.
+        </p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-destructive">
             {error}
+          </p>
+        )}
+        {settingsError && (
+          <p role="alert" className="mt-4 text-sm text-destructive">
+            {settingsError}
           </p>
         )}
         <div className="mt-6 flex justify-end gap-2">
@@ -87,6 +114,16 @@ export function AudioPermissionGate({ children }: { children: React.ReactNode })
           >
             Ohne Mikrofon fortfahren
           </Button>
+          {desktop && (
+            <Button
+              variant="panel"
+              size="touch"
+              disabled={requesting}
+              onClick={() => void openMicrophoneSettings()}
+            >
+              Windows-Einstellungen
+            </Button>
+          )}
           <Button
             variant="cockpit"
             size="touch"

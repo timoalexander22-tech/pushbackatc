@@ -10,6 +10,7 @@
     "allow-write-app-log",
     "allow-backup-app-config",
     "allow-open-external-url",
+    "allow-open-microphone-settings",
     "allow-check-latest-release",
     "allow-test-github-connection",
     "allow-download-installer",
