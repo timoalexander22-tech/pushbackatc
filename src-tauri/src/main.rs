@@ -15,6 +15,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const APP_PORT: u16 = 4173;
@@ -866,15 +867,21 @@ fn main() {
                 format!("http://127.0.0.1:{port}")
             };
 
-            WebviewWindowBuilder::new(
-                app,
-                "main",
-                WebviewUrl::External(url.parse()?),
-            )
-            .title("Virtual Ground Crew")
-            .inner_size(1280.0, 900.0)
-            .min_inner_size(800.0, 600.0)
-            .build()?;
+            let app_url = url.parse::<tauri::Url>()?;
+            let app_origin = app_url.origin().ascii_serialization();
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(app_url))
+                .on_navigation(move |url| url.origin().ascii_serialization() == app_origin)
+                .on_permission_request(|webview, permission| {
+                    if webview.label() == "main" && permission == PermissionKind::Microphone {
+                        PermissionResponse::Allow
+                    } else {
+                        PermissionResponse::Default
+                    }
+                })
+                .title("Virtual Ground Crew")
+                .inner_size(1280.0, 900.0)
+                .min_inner_size(800.0, 600.0)
+                .build()?;
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -4,13 +4,17 @@ vi.mock("./tts/tts.functions", () => ({ crewSpeech: vi.fn() }));
 vi.mock("./audio/stt.functions", () => ({ transcribeRadio: vi.fn() }));
 import { transcribeRadio } from "./audio/stt.functions";
 import { crewSpeech } from "./tts/tts.functions";
-import { speak, useRecognition } from "./speech";
+import { speak, useAudioDevices, useRecognition } from "./speech";
 
+const mediaDevicesDescriptor = Object.getOwnPropertyDescriptor(navigator, "mediaDevices");
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   localStorage.clear();
+  if (mediaDevicesDescriptor)
+    Object.defineProperty(navigator, "mediaDevices", mediaDevicesDescriptor);
+  else Reflect.deleteProperty(navigator, "mediaDevices");
 });
 const fakeRecording = () => ({
   stop: vi.fn(async () => new Blob([new Uint8Array(20000)])),
@@ -195,6 +199,34 @@ it("reports recording finalization errors instead of leaving an unhandled reject
 
   await waitFor(() => expect(result.current.error).toMatch(/Aufnahme oder Spracherkennung/));
   expect(send).not.toHaveBeenCalled();
+});
+
+it("does not request microphone access or replace saved devices during passive enumeration", async () => {
+  const savedSettings = {
+    inputDeviceId: "usb-microphone",
+    outputDeviceId: "usb-headset",
+  };
+  localStorage.setItem("vgc.settings.v1", JSON.stringify(savedSettings));
+  const getUserMedia = vi.fn();
+  const mediaDevices = {
+    enumerateDevices: vi.fn().mockResolvedValue([
+      { deviceId: "default", kind: "audioinput", label: "" },
+      { deviceId: "default", kind: "audiooutput", label: "" },
+    ]),
+    getUserMedia,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: mediaDevices,
+  });
+
+  const { result } = renderHook(() => useAudioDevices());
+  await waitFor(() => expect(result.current.inputs).toHaveLength(1));
+
+  expect(getUserMedia).not.toHaveBeenCalled();
+  expect(JSON.parse(localStorage.getItem("vgc.settings.v1") ?? "{}")).toEqual(savedSettings);
 });
 
 it("rejects a too-short press", async () => {

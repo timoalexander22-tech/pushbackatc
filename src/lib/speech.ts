@@ -195,18 +195,8 @@ export function useAudioDevices() {
       return;
     }
     try {
-      let d = await navigator.mediaDevices.enumerateDevices();
+      const d = await navigator.mediaDevices.enumerateDevices();
       const hasUnnamedInput = d.some((x) => x.kind === "audioinput" && x.deviceId && !x.label);
-      if (hasUnnamedInput) {
-        try {
-          const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          permissionStream.getTracks().forEach((track) => track.stop());
-          d = await navigator.mediaDevices.enumerateDevices();
-        } catch (permissionError) {
-          setError("Mikrofonzugriff verweigert. Bitte Gerätezugriff erlauben und erneut laden.");
-          return;
-        }
-      }
       const nextInputs = d
         .filter((x) => x.kind === "audioinput" && x.deviceId)
         .map((x) => describeMediaDevice(x, "microphone"));
@@ -218,7 +208,10 @@ export function useAudioDevices() {
       const settings = readSettings();
       const inputFallback = resolveAvailableDevice(settings.inputDeviceId, nextInputs);
       const outputFallback = resolveAvailableDevice(settings.outputDeviceId, nextOutputs);
-      if (inputFallback !== settings.inputDeviceId || outputFallback !== settings.outputDeviceId) {
+      if (
+        !hasUnnamedInput &&
+        (inputFallback !== settings.inputDeviceId || outputFallback !== settings.outputDeviceId)
+      ) {
         try {
           const raw = JSON.parse(localStorage.getItem("vgc.settings.v1") || "{}");
           localStorage.setItem(
