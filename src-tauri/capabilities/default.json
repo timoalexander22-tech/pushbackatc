@@ -11,6 +11,7 @@
     "allow-backup-app-config",
     "allow-open-external-url",
     "allow-check-latest-release",
+    "allow-test-github-connection",
     "allow-download-installer",
     "allow-run-installer"
   ]

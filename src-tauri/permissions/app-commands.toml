@@ -29,6 +29,11 @@ description = "Allows checking the latest release for a GitHub repository."
 commands.allow = ["check_latest_release"]
 
 [[permission]]
+identifier = "allow-test-github-connection"
+description = "Allows testing configured GitHub repository and branch access."
+commands.allow = ["test_github_connection"]
+
+[[permission]]
 identifier = "allow-download-installer"
 description = "Allows downloading a release installer."
 commands.allow = ["download_installer"]

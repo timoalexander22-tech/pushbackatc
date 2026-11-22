@@ -2,6 +2,7 @@
 
 use std::{
     error::Error,
+    env,
     fs::{self, File},
     io::Write,
     net::{TcpListener, TcpStream},
@@ -362,6 +363,176 @@ fn normalize_github_repository(repository: &str) -> Result<String, String> {
     Ok(format!("{}/{}", parts[0], parts[1]))
 }
 
+fn github_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .connect_timeout(Duration::from_secs(5))
+        .user_agent("Virtual-Ground-Crew")
+        .build()
+        .map_err(|error| format!("GitHub-Client konnte nicht initialisiert werden: {error}"))
+}
+
+async fn github_get_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    token: Option<&str>,
+) -> Result<reqwest::Response, String> {
+    let mut last_error = "GitHub-Anfrage fehlgeschlagen".to_string();
+    for attempt in 0..=2 {
+        let mut request = client
+            .get(url)
+            .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+            .header(reqwest::header::USER_AGENT, "Virtual-Ground-Crew")
+            .header("X-GitHub-Api-Version", "2022-11-28");
+        if let Some(token) = token {
+            if !token.trim().is_empty() {
+                request = request.bearer_auth(token.trim());
+            }
+        }
+        match request.send().await {
+            Ok(response) => {
+                if response.status().is_success()
+                    || !matches!(response.status().as_u16(), 429 | 500..=599)
+                {
+                    return Ok(response);
+                }
+                last_error = format!("GitHub-API HTTP {}", response.status().as_u16());
+            }
+            Err(error) => {
+                last_error = format!("GitHub-Verbindung fehlgeschlagen: {error}");
+            }
+        }
+        if attempt < 2 {
+            thread::sleep(Duration::from_millis(300 * (attempt as u64 + 1)));
+        }
+    }
+    Err(last_error)
+}
+
+#[tauri::command]
+async fn test_github_connection(
+    repository: String,
+    branch: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let repository = normalize_github_repository(&repository)?;
+    let client = github_client()?;
+    let token = env::var("VGC_GITHUB_TOKEN").ok();
+
+    let repository_url = format!("https://api.github.com/repos/{repository}");
+    let repository_response =
+        match github_get_with_retry(&client, &repository_url, token.as_deref()).await {
+            Ok(response) => response,
+            Err(error) => {
+                return Ok(serde_json::json!({
+                    "success": false,
+                    "repositoryReachable": false,
+                    "authenticatedUser": null,
+                    "repositoryId": null,
+                    "defaultBranch": null,
+                    "usedBranch": null,
+                    "permissions": null,
+                    "error": error,
+                    "recommendedSolution": "Prüfen Sie Repository-Name, Netzwerk/Proxy und optional VGC_GITHUB_TOKEN."
+                }));
+            }
+        };
+    if !repository_response.status().is_success() {
+        let status = repository_response.status();
+        let (error, solution) = match status.as_u16() {
+            404 => (
+                "Repository nicht gefunden oder kein Zugriff.".to_string(),
+                "Repository-Adresse und Token-Berechtigung (repo für private Repositorys) prüfen.",
+            ),
+            401 => (
+                "GitHub-Authentifizierung fehlgeschlagen.".to_string(),
+                "VGC_GITHUB_TOKEN ersetzen oder Ablauf des Tokens prüfen.",
+            ),
+            403 => (
+                "GitHub-Zugriff verweigert oder Rate-Limit erreicht.".to_string(),
+                "Token-Rechte und GitHub-API-Ratelimit prüfen.",
+            ),
+            code => (
+                format!("GitHub-API HTTP {code}"),
+                "GitHub-Service-Status und Netzwerkverbindung prüfen.",
+            ),
+        };
+        return Ok(serde_json::json!({
+            "success": false,
+            "repositoryReachable": false,
+            "authenticatedUser": null,
+            "repositoryId": null,
+            "defaultBranch": null,
+            "usedBranch": null,
+            "permissions": null,
+            "error": error,
+            "recommendedSolution": solution
+        }));
+    }
+    let repository_data: serde_json::Value = repository_response
+        .json()
+        .await
+        .map_err(|error| format!("GitHub-Repositorystatus konnte nicht gelesen werden: {error}"))?;
+    let default_branch = repository_data
+        .get("default_branch")
+        .and_then(|value| value.as_str())
+        .unwrap_or("main");
+    let used_branch = branch
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default_branch.to_string());
+
+    let mut authenticated_user: Option<String> = None;
+    if token.as_deref().is_some_and(|value| !value.trim().is_empty()) {
+        if let Ok(response) =
+            github_get_with_retry(&client, "https://api.github.com/user", token.as_deref()).await
+        {
+            if response.status().is_success() {
+                if let Ok(user) = response.json::<serde_json::Value>().await {
+                    authenticated_user = user
+                        .get("login")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string);
+                }
+            }
+        }
+    }
+
+    let encoded_branch = used_branch.replace('/', "%2F");
+    let branch_url =
+        format!("https://api.github.com/repos/{repository}/branches/{encoded_branch}");
+    let branch_response =
+        github_get_with_retry(&client, &branch_url, token.as_deref()).await;
+    let branch_reachable = matches!(&branch_response, Ok(response) if response.status().is_success());
+    let error = if branch_reachable {
+        None
+    } else {
+        match branch_response {
+            Ok(response) => Some(format!(
+                "Branch '{}' ist nicht erreichbar (HTTP {}).",
+                used_branch,
+                response.status().as_u16()
+            )),
+            Err(error) => Some(error),
+        }
+    };
+
+    Ok(serde_json::json!({
+        "success": error.is_none(),
+        "repositoryReachable": true,
+        "authenticatedUser": authenticated_user,
+        "repositoryId": repository_data.get("id").and_then(|value| value.as_u64()),
+        "defaultBranch": default_branch,
+        "usedBranch": used_branch,
+        "permissions": repository_data.get("permissions"),
+        "error": error,
+        "recommendedSolution": if branch_reachable {
+            null
+        } else {
+            serde_json::Value::String("Prüfen Sie den konfigurierten Branch-Namen und die Repository-Berechtigungen.".to_string())
+        }
+    }))
+}
+
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     let parsed = reqwest::Url::parse(&url)
@@ -396,31 +567,74 @@ fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn check_latest_release(repository: String) -> Result<serde_json::Value, String> {
+async fn check_latest_release(
+    repository: String,
+    channel: Option<String>,
+) -> Result<serde_json::Value, String> {
     let repository = normalize_github_repository(&repository)?;
-    let response = reqwest::Client::new()
-        .get(format!("https://api.github.com/repos/{repository}/releases/latest"))
-        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
-        .header(reqwest::header::USER_AGENT, "Virtual-Ground-Crew")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .send()
-        .await
-        .map_err(|error| format!("GitHub-Verbindung fehlgeschlagen: {error}"))?;
+    let channel = channel.unwrap_or_else(|| "stable".to_string()).to_lowercase();
+    if !matches!(channel.as_str(), "stable" | "beta" | "development") {
+        return Err("Ungültiger Update-Kanal.".to_string());
+    }
+    let client = github_client()?;
+    let token = env::var("VGC_GITHUB_TOKEN").ok();
+    let url = if channel == "stable" {
+        format!("https://api.github.com/repos/{repository}/releases/latest")
+    } else {
+        format!("https://api.github.com/repos/{repository}/releases?per_page=100")
+    };
+    let response = github_get_with_retry(&client, &url, token.as_deref())
+        .await?;
     if !response.status().is_success() {
         return Err(format!(
             "GitHub-API HTTP {}",
             response.status().as_u16()
         ));
     }
-    let release: serde_json::Value = response
+    let release_payload: serde_json::Value = response
         .json()
         .await
         .map_err(|error| format!("GitHub-Antwort konnte nicht gelesen werden: {error}"))?;
+    let release = if channel == "stable" {
+        release_payload
+    } else {
+        let releases = release_payload
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        releases
+            .into_iter()
+            .find(|item| {
+                if item
+                    .get("draft")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false)
+                {
+                    return false;
+                }
+                let tag = item
+                    .get("tag_name")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                if channel == "beta" {
+                    tag.to_lowercase().contains("beta") || item
+                        .get("prerelease")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false)
+                } else {
+                    true
+                }
+            })
+            .unwrap_or(serde_json::Value::Null)
+    };
+    if release.is_null() {
+        return Ok(serde_json::json!({ "release": null, "configured": true }));
+    }
     let tag = release
         .get("tag_name")
         .and_then(|value| value.as_str())
         .unwrap_or("");
-    let version = tag.trim().trim_start_matches('v').split('-').next().unwrap_or("");
+    let version = tag.trim().trim_start_matches('v');
     if release
         .get("draft")
         .and_then(|value| value.as_bool())
@@ -570,6 +784,31 @@ fn run_installer(app: tauri::AppHandle, path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::normalize_github_repository;
+
+    #[test]
+    fn normalizes_github_repository_formats() {
+        assert_eq!(
+            normalize_github_repository("timoalexander22-tech/pushbackatc").unwrap(),
+            "timoalexander22-tech/pushbackatc"
+        );
+        assert_eq!(
+            normalize_github_repository("https://github.com/timoalexander22-tech/pushbackatc.git")
+                .unwrap(),
+            "timoalexander22-tech/pushbackatc"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_github_repository_formats() {
+        assert!(normalize_github_repository("").is_err());
+        assert!(normalize_github_repository("pushbackatc").is_err());
+        assert!(normalize_github_repository("https://example.com/owner/repository").is_err());
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(ChildProcesses::default())
@@ -592,6 +831,7 @@ fn main() {
             write_app_log,
             backup_app_config,
             open_external_url,
+            test_github_connection,
             check_latest_release,
             download_installer,
             run_installer

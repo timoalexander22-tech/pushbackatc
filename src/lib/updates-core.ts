@@ -37,7 +37,17 @@ export function compareVersions(left: string, right: string): number {
   for (let i = 0; i < 3; i++) {
     if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
   }
-  return 0;
+  const prerelease = (value: string) => {
+    const normalized = value.trim().replace(/^v/i, "");
+    const separator = normalized.indexOf("-");
+    return separator >= 0 ? normalized.slice(separator + 1) : null;
+  };
+  const leftPrerelease = prerelease(left);
+  const rightPrerelease = prerelease(right);
+  if (leftPrerelease === null && rightPrerelease === null) return 0;
+  if (leftPrerelease === null) return 1;
+  if (rightPrerelease === null) return -1;
+  return leftPrerelease.localeCompare(rightPrerelease);
 }
 
 export function isNewerVersion(current: string, available: string): boolean {
@@ -46,7 +56,10 @@ export function isNewerVersion(current: string, available: string): boolean {
 
 export function releaseToUpdate(release: GitHubRelease): UpdateRelease | null {
   if (release.draft) return null;
-  const version = parseSemver(release.tag_name)?.join(".") ?? null;
+  const normalizedTag = release.tag_name.trim().replace(/^v/i, "");
+  const version = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(normalizedTag)
+    ? normalizedTag
+    : null;
   if (!version) return null;
   return {
     version,

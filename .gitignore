@@ -18,6 +18,7 @@ local-stt/build
 local-tts/build
 .build-envs
 __pycache__
+/.env
 .vinxi
 .tanstack/**
 .nitro

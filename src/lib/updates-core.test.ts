@@ -18,6 +18,12 @@ describe("update version handling", () => {
     expect(isNewerVersion("1.2.0", "1.2.0")).toBe(false);
   });
 
+  it("compares prerelease versions without treating them as stable versions", () => {
+    expect(compareVersions("1.3.0-beta.1", "1.3.0")).toBe(-1);
+    expect(compareVersions("1.3.0", "1.3.0-beta.1")).toBe(1);
+    expect(isNewerVersion("1.2.0", "1.3.0-beta.1")).toBe(true);
+  });
+
   it("ignores invalid release tags and drafts", () => {
     expect(
       releaseToUpdate({

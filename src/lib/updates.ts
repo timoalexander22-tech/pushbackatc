@@ -20,6 +20,7 @@ export function useUpdateCheck() {
             configured: boolean;
           }>("check_latest_release", {
             repository: settings.updateRepositoryUrl,
+            channel: settings.updateChannel,
           });
           return {
             build: 0,

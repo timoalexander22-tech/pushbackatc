@@ -23,6 +23,8 @@ export type Settings = {
   simCode: string;
   autoUpdateCheck: boolean;
   updateRepositoryUrl: string;
+  updateBranch: string;
+  updateChannel: "stable" | "beta" | "development";
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -47,6 +49,8 @@ export const DEFAULT_SETTINGS: Settings = {
   simCode: "",
   autoUpdateCheck: true,
   updateRepositoryUrl: "https://github.com/timoalexander22-tech/pushbackatc",
+  updateBranch: "main",
+  updateChannel: "stable",
 };
 
 const KEY = "vgc.settings.v1";

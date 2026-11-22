@@ -43,6 +43,14 @@ The MSI and NSIS installers are written under `src-tauri/target/release/bundle/`
 No Node.js or Python installation is needed on users' PCs after installing the app.
 The batch file keeps its window open and displays build errors.
 
+### GitHub updates
+
+Update checks use GitHub Releases. Public repositories need no token. For private
+repositories or higher API limits, set `VGC_GITHUB_TOKEN` in the desktop process
+environment with read access to the repository. Never add a token to `.env`,
+frontend code, screenshots, logs, or source control. Copy `.env.example` for
+optional non-secret local configuration.
+
 ## Community-Plugins
 
 Community-Plugins werden unter `%APPDATA%\\pushbackatc\\community` gesucht.

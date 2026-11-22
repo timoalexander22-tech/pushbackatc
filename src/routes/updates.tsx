@@ -52,6 +52,18 @@ const normalizeRepositoryDraft = (value: string) => {
     .replace(/\.git$/i, "");
 };
 
+type GitHubConnectionDiagnosis = {
+  success: boolean;
+  repositoryReachable: boolean;
+  authenticatedUser: string | null;
+  repositoryId: number | null;
+  defaultBranch: string | null;
+  usedBranch: string | null;
+  permissions: Record<string, boolean> | null;
+  error: string | null;
+  recommendedSolution: string | null;
+};
+
 function UpdatesPage() {
   const u = useUpdateCheck();
   const sim = useSim();
@@ -62,6 +74,9 @@ function UpdatesPage() {
   const [updateMessage, setUpdateMessage] = useState("");
   const updateError = u.isError || !!u.statusError;
   const [repositoryDraft, setRepositoryDraft] = useState(settings.updateRepositoryUrl);
+  const [githubDiagnosis, setGithubDiagnosis] =
+    useState<GitHubConnectionDiagnosis | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
 
   const openExternalUrl = async (url: string) => {
     try {
@@ -89,6 +104,32 @@ function UpdatesPage() {
     update({ updateRepositoryUrl: normalized });
     setUpdateMessage("Repository gespeichert. Die Updateprüfung wird neu gestartet.");
     void u.refetch();
+  };
+
+  const testGitHubConnection = async () => {
+    setTestingConnection(true);
+    setGithubDiagnosis(null);
+    try {
+      const diagnosis = await invoke<GitHubConnectionDiagnosis>("test_github_connection", {
+        repository: settings.updateRepositoryUrl,
+        branch: settings.updateBranch,
+      });
+      setGithubDiagnosis(diagnosis);
+    } catch (error) {
+      setGithubDiagnosis({
+        success: false,
+        repositoryReachable: false,
+        authenticatedUser: null,
+        repositoryId: null,
+        defaultBranch: null,
+        usedBranch: settings.updateBranch,
+        permissions: null,
+        error: error instanceof Error ? error.message : "GitHub-Verbindungstest fehlgeschlagen.",
+        recommendedSolution: "Tauri-App neu starten und Repository-Konfiguration prüfen.",
+      });
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   const downloadAndInstall = async () => {
@@ -164,17 +205,16 @@ function UpdatesPage() {
           <div>
             <div className="font-display text-lg uppercase">GitHub-Releasequelle</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Stable-Releases · Kein Zugangstoken erforderlich
+              Stable-, Beta- oder Development-Releases · Kein Zugangstoken erforderlich
             </p>
           </div>
-          <Button variant="panel" size="touch" asChild>
-            <button
-              type="button"
-              onClick={() => void openExternalUrl(repositoryUrl(settings.updateRepositoryUrl))}
-            >
-              <ExternalLink className="size-4" aria-hidden="true" />
-              Repository öffnen
-            </button>
+          <Button
+            variant="panel"
+            size="touch"
+            onClick={() => void openExternalUrl(repositoryUrl(settings.updateRepositoryUrl))}
+          >
+            <ExternalLink className="size-4" aria-hidden="true" />
+            Repository öffnen
           </Button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -198,6 +238,80 @@ function UpdatesPage() {
             Repository speichern
           </Button>
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            className="h-12 w-48 rounded-lg border border-input bg-secondary px-3 font-mono text-sm"
+            value={settings.updateBranch}
+            onChange={(event) => {
+              update({ updateBranch: event.target.value.trim() });
+              setGithubDiagnosis(null);
+            }}
+            aria-label="GitHub-Branch"
+            placeholder="main"
+          />
+          <select
+            className="h-12 rounded-lg border border-input bg-secondary px-3 text-sm"
+            value={settings.updateChannel}
+            onChange={(event) => {
+              const channel = event.target.value as "stable" | "beta" | "development";
+              update({ updateChannel: channel });
+              setGithubDiagnosis(null);
+              void u.refetch();
+            }}
+            aria-label="Update-Kanal"
+          >
+            <option value="stable">Stable</option>
+            <option value="beta">Beta</option>
+            <option value="development">Development</option>
+          </select>
+          <Button
+            variant="panel"
+            size="touch"
+            disabled={testingConnection}
+            onClick={() => void testGitHubConnection()}
+          >
+            {testingConnection ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCw className="size-4" aria-hidden="true" />
+            )}
+            Verbindung testen
+          </Button>
+        </div>
+        {githubDiagnosis && (
+          <div
+            role="status"
+            className={`mt-3 rounded-xl border p-3 text-sm ${
+              githubDiagnosis.success
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : "border-destructive/30 bg-destructive/5"
+            }`}
+          >
+            <div className="font-medium">
+              {githubDiagnosis.success
+                ? "GitHub-Verbindung erfolgreich"
+                : "GitHub-Verbindung fehlgeschlagen"}
+            </div>
+            {githubDiagnosis.error && (
+              <p className="mt-1 text-destructive">{githubDiagnosis.error}</p>
+            )}
+            {githubDiagnosis.recommendedSolution && (
+              <p className="mt-1 text-muted-foreground">
+                Lösungsvorschlag: {githubDiagnosis.recommendedSolution}
+              </p>
+            )}
+            <p className="mt-1 text-muted-foreground">
+              Repository erreichbar: {githubDiagnosis.repositoryReachable ? "Ja" : "Nein"}
+              {githubDiagnosis.authenticatedUser &&
+                ` · Benutzer: ${githubDiagnosis.authenticatedUser}`}
+              {githubDiagnosis.repositoryId !== null &&
+                ` · Repository-ID: ${githubDiagnosis.repositoryId}`}
+              {githubDiagnosis.defaultBranch &&
+                ` · Standard-Branch: ${githubDiagnosis.defaultBranch}`}
+              {githubDiagnosis.usedBranch && ` · Geprüfter Branch: ${githubDiagnosis.usedBranch}`}
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="panel p-5" aria-live="polite">
