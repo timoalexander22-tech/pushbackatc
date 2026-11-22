@@ -526,7 +526,7 @@ async fn test_github_connection(
         "permissions": repository_data.get("permissions"),
         "error": error,
         "recommendedSolution": if branch_reachable {
-            null
+            serde_json::Value::Null
         } else {
             serde_json::Value::String("Prüfen Sie den konfigurierten Branch-Namen und die Repository-Berechtigungen.".to_string())
         }
