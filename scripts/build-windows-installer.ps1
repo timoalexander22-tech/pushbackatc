@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-Push-Location $root
+$buildMutex = New-Object System.Threading.Mutex($false, "Local\PushbackATC-Windows-Installer")
+$buildMutexAcquired = $false
+$locationPushed = $false
 
 function Invoke-Checked {
   param(
@@ -15,6 +17,22 @@ function Invoke-Checked {
 }
 
 try {
+  try {
+    $buildMutexAcquired = $buildMutex.WaitOne(0)
+    if (-not $buildMutexAcquired) {
+      Write-Host "Ein anderer Windows-Installer-Build läuft bereits. Warte auf dessen Abschluss..."
+      $buildMutex.WaitOne() | Out-Null
+      $buildMutexAcquired = $true
+    }
+  }
+  catch [System.Threading.AbandonedMutexException] {
+    $buildMutexAcquired = $true
+    Write-Host "Eine vorherige Build-Instanz wurde unerwartet beendet. Fahre mit dem Build fort..."
+  }
+
+  Push-Location $root
+  $locationPushed = $true
+
   Invoke-Checked "npm.cmd" @("ci")
 
   $nodePath = (Get-Command node -ErrorAction Stop).Source
@@ -53,7 +71,13 @@ catch {
   exit 1
 }
 finally {
-  Pop-Location
+  if ($locationPushed) {
+    Pop-Location
+  }
+  if ($buildMutexAcquired) {
+    $buildMutex.ReleaseMutex()
+  }
+  $buildMutex.Dispose()
 }
 
 Write-Host ""
